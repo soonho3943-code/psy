@@ -12,22 +12,23 @@
       <h1>학생 운동 관리 시스템</h1>
       <form id="loginForm">
         <div class="form-group">
-          <label for="username">아이디</label>
-          <input type="text" id="username" name="username" required>
+          <label for="username">아이디 (이름)</label>
+          <input type="text" id="username" name="username" placeholder="예: 홍길동" required>
         </div>
         <div class="form-group">
           <label for="password">비밀번호</label>
           <input type="password" id="password" name="password" required>
         </div>
         <button type="submit" class="btn btn-primary">로그인</button>
+        <button type="button" class="btn btn-secondary" onclick="showSignupModal()" style="margin-top: 10px;">회원가입</button>
       </form>
-      <p class="hint">기본 비밀번호: 1234</p>
+      <p class="hint">학생 계정이 없으신가요? 위의 회원가입 버튼을 클릭하세요!</p>
       <div class="test-accounts">
         <h3>테스트 계정</h3>
         <ul>
           <li>관리자: admin / 1234</li>
           <li>교사: teacher1 / 1234</li>
-          <li>학생: student1 / 1234</li>
+          <li>학생: 김민준 (또는 이서연, 박지호 등) / 1234</li>
           <li>학부모: parent1 / 1234</li>
         </ul>
       </div>
@@ -137,7 +138,42 @@
 
       <!-- 획득 뱃지 탭 -->
       <section id="badges" class="tab-content">
-        <h2>획득 뱃지</h2>
+        <div class="section-header">
+          <h2>획득 뱃지</h2>
+          <button class="btn btn-primary" id="toggleLeaderboardBtn" onclick="toggleLeaderboard()">
+            🏆 리더보드 보기
+          </button>
+        </div>
+
+        <!-- 리더보드 뷰 -->
+        <div id="leaderboardView" style="display: none;">
+          <div class="leaderboard-tabs">
+            <button class="leaderboard-tab-btn active" data-category="total" onclick="switchLeaderboardCategory('total')">종합</button>
+            <button class="leaderboard-tab-btn" data-category="badges" onclick="switchLeaderboardCategory('badges')">뱃지</button>
+            <button class="leaderboard-tab-btn" data-category="steps" onclick="switchLeaderboardCategory('steps')">걸음수</button>
+            <button class="leaderboard-tab-btn" data-category="minutes" onclick="switchLeaderboardCategory('minutes')">운동시간</button>
+            <button class="leaderboard-tab-btn" data-category="calories" onclick="switchLeaderboardCategory('calories')">칼로리</button>
+            <button class="leaderboard-tab-btn" data-category="distance" onclick="switchLeaderboardCategory('distance')">거리</button>
+          </div>
+
+          <div class="leaderboard-content" id="leaderboardContent">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>순위</th>
+                  <th>이름</th>
+                  <th>반</th>
+                  <th id="leaderboardValueHeader">총점</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardTableBody">
+                <tr>
+                  <td colspan="4" class="text-center">데이터를 불러오는 중...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         <!-- 학생용: 다른 학생 선택 -->
         <div class="student-selector" id="badgeStudentSelector" style="display: none;">
@@ -244,6 +280,94 @@
           <textarea id="recordNotes" name="notes" rows="3"></textarea>
         </div>
         <button type="submit" class="btn btn-primary">저장</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 회원가입 모달 -->
+  <div id="signupModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeSignupModal()">&times;</span>
+      <h2>학생 회원가입</h2>
+      <form id="signupForm">
+        <div class="form-group">
+          <label for="signupSchool">학교 이름 <span class="required">*</span></label>
+          <input type="text" id="signupSchool" name="school" placeholder="예: 서울초등학교" required>
+          <small>OO초등학교 형식으로 입력하세요</small>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="signupGrade">학년 <span class="required">*</span></label>
+            <select id="signupGrade" name="grade" required>
+              <option value="">선택</option>
+              <option value="1">1학년</option>
+              <option value="2">2학년</option>
+              <option value="3">3학년</option>
+              <option value="4">4학년</option>
+              <option value="5">5학년</option>
+              <option value="6">6학년</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="signupClass">반 <span class="required">*</span></label>
+            <input type="number" id="signupClass" name="class" min="1" max="20" placeholder="예: 1" required>
+          </div>
+
+          <div class="form-group">
+            <label for="signupNumber">번호 <span class="required">*</span></label>
+            <input type="number" id="signupNumber" name="number" min="1" max="40" placeholder="예: 5" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="signupName">이름 <span class="required">*</span></label>
+          <input type="text" id="signupName" name="name" placeholder="예: 홍길동" required>
+        </div>
+
+        <div class="form-group">
+          <label for="signupPassword">비밀번호 <span class="required">*</span></label>
+          <input type="password" id="signupPassword" name="password" minlength="4" placeholder="최소 4자 이상" required>
+        </div>
+
+        <div class="form-group">
+          <label for="signupPasswordConfirm">비밀번호 확인 <span class="required">*</span></label>
+          <input type="password" id="signupPasswordConfirm" name="passwordConfirm" minlength="4" placeholder="비밀번호를 다시 입력하세요" required>
+        </div>
+
+        <div class="form-group">
+          <label for="signupEmail">이메일 (선택)</label>
+          <input type="email" id="signupEmail" name="email" placeholder="예: student@email.com">
+        </div>
+
+        <div class="privacy-agreement">
+          <h3>개인정보 수집 및 이용 동의</h3>
+          <div class="privacy-content">
+            <p><strong>1. 수집하는 개인정보 항목</strong></p>
+            <p>학교명, 학년, 반, 번호, 이름, 이메일(선택), 비밀번호</p>
+
+            <p><strong>2. 개인정보의 수집 및 이용 목적</strong></p>
+            <p>- 학생 운동 활동 기록 관리<br>
+            - 스마트폰 및 웨어러블 기기로부터 걸음 수, 운동 시간, 칼로리 소모량, 이동 거리 등 운동 정보 수집 및 분석<br>
+            - 운동 목표 설정 및 달성도 관리<br>
+            - 뱃지 및 리워드 제공<br>
+            - 학생 건강 증진 및 운동 습관 형성 지원</p>
+
+            <p><strong>3. 개인정보의 보유 및 이용 기간</strong></p>
+            <p>회원 탈퇴 시까지 보유하며, 탈퇴 즉시 모든 정보가 삭제됩니다.</p>
+
+            <p><strong>4. 동의 거부 권리 및 불이익</strong></p>
+            <p>개인정보 수집 및 이용에 대한 동의를 거부할 수 있으나, 동의하지 않을 경우 서비스 이용이 제한됩니다.</p>
+          </div>
+
+          <label class="checkbox-label">
+            <input type="checkbox" id="privacyAgree" name="privacyAgree" required>
+            <span>위 개인정보 수집 및 이용에 동의합니다 (필수)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">가입하기</button>
       </form>
     </div>
   </div>

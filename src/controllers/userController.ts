@@ -44,6 +44,18 @@ export const getStudents = (req: AuthRequest, res: Response) => {
       return res.json(students);
     }
 
+    // 학생인 경우 같은 반 학생만 조회
+    if (req.user?.role === 'student') {
+      const currentStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(req.user.id) as User;
+      const students = db.prepare(`
+        SELECT id, username, name, class_name, grade
+        FROM users
+        WHERE role = 'student' AND class_name = ? AND grade = ?
+        ORDER BY name
+      `).all(currentStudent.class_name, currentStudent.grade) as User[];
+      return res.json(students);
+    }
+
     let query = 'SELECT id, username, name, class_name, grade FROM users WHERE role = ?';
     const params: any[] = ['student'];
 

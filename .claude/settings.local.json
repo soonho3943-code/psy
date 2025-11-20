@@ -4,7 +4,16 @@
       "Bash(npm run dev:*)",
       "Bash(git init:*)",
       "Bash(dir:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git remote remove:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git config:*)",
+      "Bash(git branch:*)",
+      "Bash(del database.sqlite)"
     ],
     "deny": [],
     "ask": []

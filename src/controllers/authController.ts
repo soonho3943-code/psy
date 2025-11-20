@@ -50,9 +50,9 @@ export const login = async (req: Request, res: Response) => {
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { username, password, role, name, class_name, grade, email, phone } = req.body;
+    const { password, role, name, class_name, grade, email, phone } = req.body;
 
-    if (!username || !password || !role || !name) {
+    if (!password || !role || !name) {
       return res.status(400).json({ error: '필수 정보를 모두 입력해주세요' });
     }
 
@@ -60,10 +60,12 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ error: '올바른 역할을 선택해주세요' });
     }
 
-    const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-
-    if (existingUser) {
-      return res.status(409).json({ error: '이미 존재하는 아이디입니다' });
+    // 이름을 기반으로 username 생성 (중복 시 숫자 추가)
+    let username = name;
+    let counter = 2;
+    while (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) {
+      username = `${name}${counter}`;
+      counter++;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -75,6 +77,7 @@ export const register = async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: '회원가입이 완료되었습니다',
+      username: username,
       userId: result.lastInsertRowid
     });
   } catch (error) {

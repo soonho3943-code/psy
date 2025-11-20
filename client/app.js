@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 로그인 폼 제출
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
 
+  // 회원가입 폼 제출
+  document.getElementById('signupForm').addEventListener('submit', handleSignup);
+
   // 기록 추가 폼 제출
   document.getElementById('addRecordForm').addEventListener('submit', handleAddRecord);
 
@@ -94,10 +97,8 @@ async function showDashboard() {
     studentsTab.style.display = 'block';
   }
 
-  // 학생 목록 로드 (교사, 관리자, 학부모)
-  if (currentUser.role !== 'student') {
-    await loadStudentsList();
-  }
+  // 학생 목록 로드 (모든 사용자)
+  await loadStudentsList();
 
   switchTab('dashboard');
 }
@@ -182,12 +183,10 @@ async function loadStudentsList() {
     if (currentUser.role !== 'student') {
       document.getElementById('studentSelector').style.display = 'block';
       document.getElementById('recordStudentSelector').style.display = 'block';
-
-      // 학생은 다른 학생 선택 가능
-      if (currentUser.role === 'student') {
-        document.getElementById('badgeStudentSelector').style.display = 'block';
-      }
     }
+
+    // 모든 사용자가 뱃지 탭에서 다른 학생 선택 가능
+    document.getElementById('badgeStudentSelector').style.display = 'block';
   } catch (error) {
     console.error('Load students error:', error);
   }
@@ -421,5 +420,408 @@ window.onclick = function(event) {
   const modal = document.getElementById('addRecordModal');
   if (event.target === modal) {
     closeAddRecordModal();
+  }
+}
+
+// ============ 뱃지 관련 함수 ============
+
+// 뱃지 탭 로드
+async function loadBadges() {
+  try {
+    // 교사/관리자: 모든 학생의 뱃지 현황 표시
+    if (currentUser.role === 'teacher' || currentUser.role === 'admin') {
+      document.getElementById('badgeSummaryView').style.display = 'block';
+      document.getElementById('badgeDetailView').style.display = 'none';
+      document.getElementById('badgeStudentSelector').style.display = 'none';
+      await loadBadgeSummary();
+    }
+    // 학생: 자신의 뱃지 + 다른 학생 선택 가능
+    else if (currentUser.role === 'student') {
+      document.getElementById('badgeSummaryView').style.display = 'none';
+      document.getElementById('badgeDetailView').style.display = 'block';
+      document.getElementById('badgeStudentSelector').style.display = 'block';
+
+      const selectedId = document.getElementById('badgeSelectedStudent')?.value || currentUser.id;
+      await loadStudentBadgeDetail(selectedId);
+    }
+    // 학부모
+    else {
+      document.getElementById('badgeSummaryView').style.display = 'none';
+      document.getElementById('badgeDetailView').style.display = 'block';
+      document.getElementById('badgeStudentSelector').style.display = 'block';
+
+      const selectedId = document.getElementById('badgeSelectedStudent')?.value;
+      if (selectedId) {
+        await loadStudentBadgeDetail(selectedId);
+      }
+    }
+  } catch (error) {
+    console.error('Load badges error:', error);
+  }
+}
+
+// 교사용: 모든 학생 뱃지 현황
+async function loadBadgeSummary() {
+  try {
+    const response = await fetch(`${API_URL}/badges/summary`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to load badge summary');
+
+    const summary = await response.json();
+    const tbody = document.getElementById('badgeSummaryTableBody');
+
+    if (summary.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center">학생이 없습니다</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = summary.map(student => {
+      const icons = student.badge_icons ? student.badge_icons.split(',').slice(0, 10).join(' ') : '';
+      return `
+        <tr onclick="showStudentBadgeDetail(${student.student_id})">
+          <td>${student.student_name}</td>
+          <td>${student.class_name || '-'}</td>
+          <td><strong>${student.badge_count || 0}</strong></td>
+          <td class="badge-icons">${icons}${student.badge_count > 10 ? '...' : ''}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Load badge summary error:', error);
+  }
+}
+
+// 학생 이름 클릭 시 상세 보기
+async function showStudentBadgeDetail(studentId) {
+  document.getElementById('badgeSummaryView').style.display = 'none';
+  document.getElementById('badgeDetailView').style.display = 'block';
+
+  // 뒤로 가기 버튼 추가
+  const h2 = document.querySelector('#badges h2');
+  if (!document.getElementById('backToBadgeSummary')) {
+    const backBtn = document.createElement('button');
+    backBtn.id = 'backToBadgeSummary';
+    backBtn.className = 'btn btn-secondary';
+    backBtn.textContent = '← 목록으로';
+    backBtn.onclick = () => {
+      document.getElementById('badgeSummaryView').style.display = 'block';
+      document.getElementById('badgeDetailView').style.display = 'none';
+      backBtn.remove();
+    };
+    h2.appendChild(backBtn);
+  }
+
+  await loadStudentBadgeDetail(studentId);
+}
+
+// 개별 학생 뱃지 상세 정보
+async function loadStudentBadgeDetail(studentId) {
+  try {
+    // 통계 로드
+    const statsResponse = await fetch(`${API_URL}/badges/student/${studentId}/stats`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (statsResponse.ok) {
+      const stats = await statsResponse.json();
+      document.getElementById('earnedBadges').textContent = stats.earned_badges || 0;
+      document.getElementById('totalBadgesCount').textContent = stats.total_badges || 0;
+      const completion = stats.total_badges > 0
+        ? Math.round((stats.earned_badges / stats.total_badges) * 100)
+        : 0;
+      document.getElementById('badgeCompletion').textContent = `${completion}%`;
+    }
+
+    // 뱃지 진행 상황 로드
+    const progressResponse = await fetch(`${API_URL}/badges/student/${studentId}/progress`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (!progressResponse.ok) throw new Error('Failed to load badge progress');
+
+    const badges = await progressResponse.json();
+    const badgeGrid = document.getElementById('badgeGrid');
+
+    if (badges.length === 0) {
+      badgeGrid.innerHTML = '<p class="text-center">뱃지 정보가 없습니다</p>';
+      return;
+    }
+
+    // 카테고리별로 그룹화
+    const categories = {
+      milestone: '이정표',
+      streak: '연속 달성',
+      steps: '걸음수',
+      time: '운동 시간',
+      calories: '칼로리',
+      distance: '거리',
+      special: '특별'
+    };
+
+    let html = '';
+    for (const [categoryCode, categoryName] of Object.entries(categories)) {
+      const categoryBadges = badges.filter(b => b.category === categoryCode);
+      if (categoryBadges.length > 0) {
+        html += `<h4 class="badge-category-title">${categoryName}</h4>`;
+        html += '<div class="badge-row">';
+        categoryBadges.forEach(badge => {
+          const earned = badge.earned ? 'earned' : 'locked';
+          const earnedDate = badge.earned_at
+            ? `<div class="badge-date">획득: ${badge.earned_at.split('T')[0]}</div>`
+            : '';
+          html += `
+            <div class="badge-item ${earned}" onclick="${badge.earned ? `celebrateBadge(event, '${badge.icon}')` : ''}">
+              <div class="badge-icon">${badge.icon}</div>
+              <div class="badge-name">${badge.name}</div>
+              <div class="badge-desc">${badge.description}</div>
+              ${earnedDate}
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+    }
+
+    badgeGrid.innerHTML = html;
+  } catch (error) {
+    console.error('Load student badge detail error:', error);
+    document.getElementById('badgeGrid').innerHTML = '<p class="text-center">뱃지 정보를 불러올 수 없습니다</p>';
+  }
+}
+
+// ============ 리더보드 관련 함수 ============
+
+let currentLeaderboardCategory = 'total';
+let isLeaderboardVisible = false;
+
+// 리더보드 토글
+function toggleLeaderboard() {
+  isLeaderboardVisible = !isLeaderboardVisible;
+  const leaderboardView = document.getElementById('leaderboardView');
+  const badgeStudentSelector = document.getElementById('badgeStudentSelector');
+  const badgeSummaryView = document.getElementById('badgeSummaryView');
+  const badgeDetailView = document.getElementById('badgeDetailView');
+  const toggleBtn = document.getElementById('toggleLeaderboardBtn');
+
+  if (isLeaderboardVisible) {
+    leaderboardView.style.display = 'block';
+    badgeStudentSelector.style.display = 'none';
+    badgeSummaryView.style.display = 'none';
+    badgeDetailView.style.display = 'none';
+    toggleBtn.textContent = '← 뱃지 보기';
+    loadLeaderboard('total');
+  } else {
+    leaderboardView.style.display = 'none';
+    toggleBtn.textContent = '🏆 리더보드 보기';
+    loadBadges();
+  }
+}
+
+// 리더보드 카테고리 전환
+function switchLeaderboardCategory(category) {
+  currentLeaderboardCategory = category;
+
+  // 탭 활성화 상태 변경
+  document.querySelectorAll('.leaderboard-tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  document.querySelector(`[data-category="${category}"]`).classList.add('active');
+
+  loadLeaderboard(category);
+}
+
+// 리더보드 데이터 로드
+async function loadLeaderboard(category) {
+  try {
+    let url = `${API_URL}/leaderboard`;
+    let headerText = '총점';
+
+    if (category !== 'total') {
+      url = `${API_URL}/leaderboard/category/${category}`;
+
+      const headers = {
+        badges: '뱃지 수',
+        steps: '총 걸음수',
+        minutes: '총 운동시간 (분)',
+        calories: '총 칼로리',
+        distance: '총 거리 (km)'
+      };
+      headerText = headers[category];
+    }
+
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to load leaderboard');
+
+    const data = await response.json();
+    document.getElementById('leaderboardValueHeader').textContent = headerText;
+
+    const tbody = document.getElementById('leaderboardTableBody');
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center">데이터가 없습니다</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(student => {
+      const isCurrentUser = currentUser && student.id === currentUser.id;
+      const rowClass = isCurrentUser ? 'highlight-row' : '';
+
+      let value;
+      if (category === 'total') {
+        value = `${student.scores.total.toLocaleString()}점`;
+      } else {
+        value = student.value.toLocaleString();
+        if (category === 'distance') {
+          value += 'km';
+        } else if (category === 'minutes') {
+          value += '분';
+        }
+      }
+
+      const medal = student.rank === 1 ? '🥇' : student.rank === 2 ? '🥈' : student.rank === 3 ? '🥉' : '';
+
+      return `
+        <tr class="${rowClass}">
+          <td><strong>${medal} ${student.rank}</strong></td>
+          <td>${student.name}</td>
+          <td>${student.class_name || '-'}</td>
+          <td><strong>${value}</strong></td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Load leaderboard error:', error);
+    document.getElementById('leaderboardTableBody').innerHTML =
+      '<tr><td colspan="4" class="text-center">리더보드를 불러올 수 없습니다</td></tr>';
+  }
+}
+
+// ============ 뱃지 클릭 이펙트 ============
+
+function celebrateBadge(event, icon) {
+  const badge = event.currentTarget;
+
+  // 반짝임 효과
+  badge.classList.add('badge-clicked');
+  setTimeout(() => {
+    badge.classList.remove('badge-clicked');
+  }, 600);
+
+  // 파티클 효과
+  const particles = ['✨', '⭐', '💫', '🌟', icon];
+  const rect = badge.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  for (let i = 0; i < 8; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'badge-particle';
+    particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+
+    const angle = (Math.PI * 2 * i) / 8;
+    const distance = 50 + Math.random() * 50;
+    const x = centerX + Math.cos(angle) * distance;
+    const y = centerY + Math.sin(angle) * distance;
+
+    particle.style.left = centerX + 'px';
+    particle.style.top = centerY + 'px';
+
+    document.body.appendChild(particle);
+
+    // 애니메이션 시작
+    setTimeout(() => {
+      particle.style.left = x + 'px';
+      particle.style.top = y + 'px';
+    }, 10);
+
+    // 제거
+    setTimeout(() => {
+      particle.remove();
+    }, 1000);
+  }
+}
+
+// ============ 회원가입 관련 함수 ============
+
+// 회원가입 모달 열기
+function showSignupModal() {
+  document.getElementById('signupModal').style.display = 'block';
+}
+
+// 회원가입 모달 닫기
+function closeSignupModal() {
+  document.getElementById('signupModal').style.display = 'none';
+  document.getElementById('signupForm').reset();
+}
+
+// 회원가입 처리
+async function handleSignup(e) {
+  e.preventDefault();
+
+  const school = document.getElementById('signupSchool').value.trim();
+  const grade = parseInt(document.getElementById('signupGrade').value);
+  const classNum = parseInt(document.getElementById('signupClass').value);
+  const number = parseInt(document.getElementById('signupNumber').value);
+  const name = document.getElementById('signupName').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
+  const email = document.getElementById('signupEmail').value.trim();
+  const privacyAgree = document.getElementById('privacyAgree').checked;
+
+  // 유효성 검사
+  if (!school.includes('초등학교')) {
+    alert('학교 이름은 "OO초등학교" 형식으로 입력해주세요.');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    alert('비밀번호가 일치하지 않습니다.');
+    return;
+  }
+
+  if (!privacyAgree) {
+    alert('개인정보 수집 및 이용에 동의해야 합니다.');
+    return;
+  }
+
+  // class_name 생성
+  const className = `${classNum}반`;
+
+  try {
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: password,
+        role: 'student',
+        name: name,
+        class_name: className,
+        grade: grade,
+        email: email || null
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.error || '회원가입에 실패했습니다');
+      return;
+    }
+
+    alert(`회원가입이 완료되었습니다!\n\n아이디: ${data.username}\n\n이 아이디로 로그인하세요.`);
+    closeSignupModal();
+
+    // 로그인 폼에 아이디 자동 입력
+    document.getElementById('username').value = data.username;
+    document.getElementById('password').focus();
+
+  } catch (error) {
+    console.error('Signup error:', error);
+    alert('회원가입 중 오류가 발생했습니다');
   }
 }
