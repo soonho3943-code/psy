@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학생 운동 관리 시스템</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container" id="loginPage">
+    <div class="login-box">
+      <h1>학생 운동 관리 시스템</h1>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">아이디</label>
+          <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">비밀번호</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">로그인</button>
+      </form>
+      <p class="hint">기본 비밀번호: 1234</p>
+      <div class="test-accounts">
+        <h3>테스트 계정</h3>
+        <ul>
+          <li>관리자: admin / 1234</li>
+          <li>교사: teacher1 / 1234</li>
+          <li>학생: student1 / 1234</li>
+          <li>학부모: parent1 / 1234</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="container hidden" id="dashboardPage">
+    <header>
+      <h1>학생 운동 관리 시스템</h1>
+      <div class="user-info">
+        <span id="userInfo"></span>
+        <button class="btn btn-secondary" onclick="logout()">로그아웃</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">대시보드</button>
+      <button class="tab-btn" data-tab="records">운동 기록</button>
+      <button class="tab-btn" data-tab="badges">획득 뱃지</button>
+      <button class="tab-btn" data-tab="students" id="studentsTab">학생 관리</button>
+    </nav>
+
+    <main>
+      <!-- 대시보드 탭 -->
+      <section id="dashboard" class="tab-content active">
+        <h2>운동 현황</h2>
+        <div class="student-selector" id="studentSelector" style="display: none;">
+          <label for="selectedStudent">학생 선택:</label>
+          <select id="selectedStudent" onchange="loadDashboard()">
+            <option value="">학생을 선택하세요</option>
+          </select>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3>오늘 걸음 수</h3>
+            <p class="stat-value" id="todaySteps">-</p>
+          </div>
+          <div class="stat-card">
+            <h3>운동 시간</h3>
+            <p class="stat-value" id="todayMinutes">-</p>
+          </div>
+          <div class="stat-card">
+            <h3>칼로리</h3>
+            <p class="stat-value" id="todayCalories">-</p>
+          </div>
+          <div class="stat-card">
+            <h3>거리</h3>
+            <p class="stat-value" id="todayDistance">-</p>
+          </div>
+        </div>
+
+        <h3>주간 통계</h3>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3>평균 걸음 수</h3>
+            <p class="stat-value" id="avgSteps">-</p>
+          </div>
+          <div class="stat-card">
+            <h3>평균 운동 시간</h3>
+            <p class="stat-value" id="avgMinutes">-</p>
+          </div>
+          <div class="stat-card">
+            <h3>총 운동 일수</h3>
+            <p class="stat-value" id="totalDays">-</p>
+          </div>
+          <div class="stat-card">
+            <h3>총 칼로리</h3>
+            <p class="stat-value" id="totalCalories">-</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 운동 기록 탭 -->
+      <section id="records" class="tab-content">
+        <div class="section-header">
+          <h2>운동 기록</h2>
+          <button class="btn btn-primary" onclick="showAddRecordModal()">기록 추가</button>
+        </div>
+
+        <div class="student-selector" id="recordStudentSelector" style="display: none;">
+          <label for="recordSelectedStudent">학생 선택:</label>
+          <select id="recordSelectedStudent" onchange="loadRecords()">
+            <option value="">학생을 선택하세요</option>
+          </select>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>걸음 수</th>
+              <th>운동 시간 (분)</th>
+              <th>칼로리</th>
+              <th>거리 (km)</th>
+              <th>메모</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTableBody">
+            <tr>
+              <td colspan="7" class="text-center">기록이 없습니다</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 획득 뱃지 탭 -->
+      <section id="badges" class="tab-content">
+        <h2>획득 뱃지</h2>
+
+        <!-- 학생용: 다른 학생 선택 -->
+        <div class="student-selector" id="badgeStudentSelector" style="display: none;">
+          <label for="badgeSelectedStudent">학생 선택:</label>
+          <select id="badgeSelectedStudent" onchange="loadBadges()">
+            <option value="">학생을 선택하세요</option>
+          </select>
+        </div>
+
+        <!-- 교사용: 모든 학생 뱃지 현황 -->
+        <div id="badgeSummaryView" style="display: none;">
+          <h3>학생별 뱃지 획득 현황</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>반</th>
+                <th>획득 뱃지 수</th>
+                <th>뱃지</th>
+              </tr>
+            </thead>
+            <tbody id="badgeSummaryTableBody">
+              <tr>
+                <td colspan="4" class="text-center">데이터를 불러오는 중...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 개별 학생 뱃지 상세 -->
+        <div id="badgeDetailView">
+          <div class="badge-stats" id="badgeStats">
+            <div class="stat-card">
+              <h3>획득한 뱃지</h3>
+              <p class="stat-value" id="earnedBadges">-</p>
+            </div>
+            <div class="stat-card">
+              <h3>전체 뱃지</h3>
+              <p class="stat-value" id="totalBadgesCount">-</p>
+            </div>
+            <div class="stat-card">
+              <h3>달성률</h3>
+              <p class="stat-value" id="badgeCompletion">-</p>
+            </div>
+          </div>
+
+          <h3>뱃지 목록</h3>
+          <div class="badge-grid" id="badgeGrid">
+            <p class="text-center">뱃지 정보를 불러오는 중...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 학생 관리 탭 -->
+      <section id="students" class="tab-content">
+        <h2>학생 목록</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>반</th>
+              <th>학년</th>
+              <th>아이디</th>
+            </tr>
+          </thead>
+          <tbody id="studentsTableBody">
+            <tr>
+              <td colspan="4" class="text-center">학생이 없습니다</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <!-- 기록 추가 모달 -->
+  <div id="addRecordModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeAddRecordModal()">&times;</span>
+      <h2>운동 기록 추가</h2>
+      <form id="addRecordForm">
+        <div class="form-group">
+          <label for="recordDate">날짜</label>
+          <input type="date" id="recordDate" name="date" required>
+        </div>
+        <div class="form-group">
+          <label for="recordSteps">걸음 수</label>
+          <input type="number" id="recordSteps" name="steps" min="0" value="0" required>
+        </div>
+        <div class="form-group">
+          <label for="recordMinutes">운동 시간 (분)</label>
+          <input type="number" id="recordMinutes" name="exercise_minutes" min="0" value="0" required>
+        </div>
+        <div class="form-group">
+          <label for="recordCalories">칼로리</label>
+          <input type="number" id="recordCalories" name="calories" min="0" step="0.1" value="0" required>
+        </div>
+        <div class="form-group">
+          <label for="recordDistance">거리 (km)</label>
+          <input type="number" id="recordDistance" name="distance" min="0" step="0.01" value="0" required>
+        </div>
+        <div class="form-group">
+          <label for="recordNotes">메모</label>
+          <textarea id="recordNotes" name="notes" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
