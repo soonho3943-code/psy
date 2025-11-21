@@ -13,7 +13,12 @@
       "Bash(git remote set-url:*)",
       "Bash(git config:*)",
       "Bash(git branch:*)",
-      "Bash(del database.sqlite)"
+      "Bash(del database.sqlite)",
+      "Bash(rm:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run seed:*)"
     ],
     "deny": [],
     "ask": []

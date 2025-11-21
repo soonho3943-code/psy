@@ -6,8 +6,21 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #FFD6E8 0%, #FFC1E0 100%);
   min-height: 100vh;
+  position: relative;
+}
+
+body::before {
+  content: '🏃‍♂️';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1000px;
+  opacity: 0.08;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .container {
@@ -103,6 +116,49 @@ body {
 
 .btn-danger:hover {
   background: #c82333;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  width: auto;
+}
+
+/* 회원가입 버튼 - 파스텔톤 색상 */
+.btn-signup-student {
+  background: #FFF59D;
+  color: #5D4037;
+  font-weight: 600;
+  padding: 12px 8px;
+  line-height: 1.5;
+}
+
+.btn-signup-student:hover {
+  background: #FFF176;
+}
+
+.btn-signup-teacher {
+  background: #90CAF9;
+  color: #1565C0;
+  font-weight: 600;
+  padding: 12px 8px;
+  line-height: 1.5;
+}
+
+.btn-signup-teacher:hover {
+  background: #64B5F6;
+}
+
+.btn-signup-parent {
+  background: #A5D6A7;
+  color: #2E7D32;
+  font-weight: 600;
+  padding: 12px 8px;
+  line-height: 1.5;
+}
+
+.btn-signup-parent:hover {
+  background: #81C784;
 }
 
 .hint {
@@ -340,7 +396,9 @@ main {
 }
 
 /* 회원가입 모달 스타일 */
-#signupModal .modal-content {
+#signupModal .modal-content,
+#teacherSignupModal .modal-content,
+#parentSignupModal .modal-content {
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;

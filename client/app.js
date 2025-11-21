@@ -97,6 +97,21 @@ async function showDashboard() {
     studentsTab.style.display = 'block';
   }
 
+  // 교사인 경우: 운동 기록 탭 UI 설정
+  if (currentUser.role === 'teacher') {
+    // 학생 선택 셀렉터 표시
+    const recordStudentSelector = document.getElementById('recordStudentSelector');
+    if (recordStudentSelector) {
+      recordStudentSelector.style.display = 'block';
+    }
+
+    // 기록 추가 버튼 숨기기
+    const addRecordButton = document.querySelector('#records .btn-primary');
+    if (addRecordButton) {
+      addRecordButton.style.display = 'none';
+    }
+  }
+
   // 학생 목록 로드 (모든 사용자)
   await loadStudentsList();
 
@@ -261,6 +276,95 @@ function resetTodayStats() {
 // 운동 기록 로드
 async function loadRecords() {
   try {
+    // 교사인 경우
+    if (currentUser.role === 'teacher') {
+      const studentId = document.getElementById('recordSelectedStudent')?.value;
+      const thead = document.getElementById('recordsTableHead');
+      const tbody = document.getElementById('recordsTableBody');
+
+      // 학생을 선택하지 않은 경우: 담임반 명렬표 표시
+      if (!studentId) {
+        // 테이블 헤더 변경 (명렬표 형식)
+        thead.innerHTML = `
+          <tr>
+            <th>순위</th>
+            <th>이름</th>
+            <th>최근 기록일</th>
+            <th>걸음 수</th>
+            <th>운동 시간 (분)</th>
+            <th>칼로리</th>
+            <th>거리 (km)</th>
+          </tr>
+        `;
+
+        const response = await fetch(
+          `${API_URL}/exercise/class-recent-records`,
+          { headers: { 'Authorization': `Bearer ${authToken}` } }
+        );
+
+        if (!response.ok) throw new Error('Failed to load class records');
+
+        const records = await response.json();
+
+        if (records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center">담임반 학생이 없습니다</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = records.map((record, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${record.student_name}</td>
+            <td>${record.date || '-'}</td>
+            <td>${record.steps ? record.steps.toLocaleString() : '0'}</td>
+            <td>${record.exercise_minutes || '0'}</td>
+            <td>${record.calories ? record.calories.toLocaleString() : '0'}</td>
+            <td>${record.distance || '0'}</td>
+          </tr>
+        `).join('');
+        return;
+      }
+
+      // 학생을 선택한 경우: 해당 학생의 누적 운동 기록 표시
+      thead.innerHTML = `
+        <tr>
+          <th>날짜</th>
+          <th>걸음 수</th>
+          <th>운동 시간 (분)</th>
+          <th>칼로리</th>
+          <th>거리 (km)</th>
+          <th>메모</th>
+        </tr>
+      `;
+
+      const response = await fetch(
+        `${API_URL}/exercise/records?student_id=${studentId}`,
+        { headers: { 'Authorization': `Bearer ${authToken}` } }
+      );
+
+      if (!response.ok) throw new Error('Failed to load records');
+
+      const records = await response.json();
+
+      if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">기록이 없습니다</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = records.map(record => `
+        <tr>
+          <td>${record.date}</td>
+          <td>${record.steps.toLocaleString()}</td>
+          <td>${record.exercise_minutes}</td>
+          <td>${record.calories.toLocaleString()}</td>
+          <td>${record.distance}</td>
+          <td>${record.notes || '-'}</td>
+        </tr>
+      `).join('');
+      return;
+    }
+
+    // 학생/관리자/학부모인 경우: 기존 로직
     const studentId = currentUser.role === 'student'
       ? currentUser.id
       : document.getElementById('recordSelectedStudent')?.value;
@@ -314,21 +418,43 @@ async function loadStudents() {
     if (!response.ok) throw new Error('Failed to load students');
 
     const students = await response.json();
+    const thead = document.getElementById('studentsTableHead');
     const tbody = document.getElementById('studentsTableBody');
 
+    // 교사인 경우 테이블 헤더에 "학생관리" 열 추가
+    if (currentUser.role === 'teacher') {
+      thead.innerHTML = `
+        <tr>
+          <th>이름</th>
+          <th>반</th>
+          <th>학년</th>
+          <th>아이디</th>
+          <th class="text-center">학생관리</th>
+        </tr>
+      `;
+    }
+
     if (students.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center">학생이 없습니다</td></tr>';
+      const colspan = currentUser.role === 'teacher' ? '5' : '4';
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">학생이 없습니다</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = students.map(student => `
-      <tr>
-        <td>${student.name}</td>
-        <td>${student.class_name || '-'}</td>
-        <td>${student.grade || '-'}</td>
-        <td>${student.username}</td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = students.map(student => {
+      const editButton = currentUser.role === 'teacher'
+        ? `<td class="text-center"><button class="btn btn-primary btn-sm" onclick="showEditStudentModal(${student.id}, '${student.username}', '${student.name}', '${student.class_name}', ${student.grade}, '${student.email || ''}', '${student.phone || ''}')">수정</button></td>`
+        : '';
+
+      return `
+        <tr>
+          <td>${student.name}</td>
+          <td>${student.class_name || '-'}</td>
+          <td>${student.grade || '-'}</td>
+          <td>${student.username}</td>
+          ${editButton}
+        </tr>
+      `;
+    }).join('');
   } catch (error) {
     console.error('Load students error:', error);
   }
@@ -764,18 +890,53 @@ async function handleSignup(e) {
   e.preventDefault();
 
   const school = document.getElementById('signupSchool').value.trim();
-  const grade = parseInt(document.getElementById('signupGrade').value);
-  const classNum = parseInt(document.getElementById('signupClass').value);
-  const number = parseInt(document.getElementById('signupNumber').value);
+  const gradeValue = document.getElementById('signupGrade').value;
+  const classValue = document.getElementById('signupClass').value;
+  const numberValue = document.getElementById('signupNumber').value;
   const name = document.getElementById('signupName').value.trim();
   const password = document.getElementById('signupPassword').value;
   const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
   const email = document.getElementById('signupEmail').value.trim();
   const privacyAgree = document.getElementById('privacyAgree').checked;
 
-  // 유효성 검사
+  // 유효성 검사 - 빈 값 체크
+  if (!school) {
+    alert('학교 이름을 입력해주세요.');
+    return;
+  }
+
   if (!school.includes('초등학교')) {
     alert('학교 이름은 "OO초등학교" 형식으로 입력해주세요.');
+    return;
+  }
+
+  if (!gradeValue || gradeValue === '') {
+    alert('학년을 선택해주세요.');
+    return;
+  }
+
+  if (!classValue || classValue === '') {
+    alert('반을 입력해주세요.');
+    return;
+  }
+
+  if (!numberValue || numberValue === '') {
+    alert('번호를 입력해주세요.');
+    return;
+  }
+
+  if (!name) {
+    alert('이름을 입력해주세요.');
+    return;
+  }
+
+  if (!password) {
+    alert('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  if (password.length < 4) {
+    alert('비밀번호는 최소 4자 이상이어야 합니다.');
     return;
   }
 
@@ -789,27 +950,57 @@ async function handleSignup(e) {
     return;
   }
 
+  // 숫자 변환
+  const grade = parseInt(gradeValue);
+  const classNum = parseInt(classValue);
+  const number = parseInt(numberValue);
+
+  // 숫자 유효성 검사
+  if (isNaN(grade) || grade < 1 || grade > 6) {
+    alert('올바른 학년을 선택해주세요.');
+    return;
+  }
+
+  if (isNaN(classNum) || classNum < 1 || classNum > 20) {
+    alert('올바른 반을 입력해주세요 (1-20).');
+    return;
+  }
+
+  if (isNaN(number) || number < 1 || number > 40) {
+    alert('올바른 번호를 입력해주세요 (1-40).');
+    return;
+  }
+
   // class_name 생성
   const className = `${classNum}반`;
+
+  // 디버깅: 전송할 데이터 확인
+  const requestData = {
+    password: password,
+    role: 'student',
+    name: name,
+    class_name: className,
+    grade: grade,
+    email: email || null
+  };
+
+  console.log('회원가입 요청 데이터:', {
+    ...requestData,
+    password: '****' // 비밀번호는 숨김
+  });
 
   try {
     const response = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        password: password,
-        role: 'student',
-        name: name,
-        class_name: className,
-        grade: grade,
-        email: email || null
-      })
+      body: JSON.stringify(requestData)
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      alert(data.error || '회원가입에 실패했습니다');
+      console.error('회원가입 실패:', data);
+      alert(`회원가입에 실패했습니다\n\n오류: ${data.error || '알 수 없는 오류'}`);
       return;
     }
 
@@ -825,3 +1016,368 @@ async function handleSignup(e) {
     alert('회원가입 중 오류가 발생했습니다');
   }
 }
+
+// 학생 정보 수정 모달 열기
+function showEditStudentModal(id, username, name, class_name, grade, email, phone) {
+  document.getElementById('editStudentId').value = id;
+  document.getElementById('editStudentUsername').value = username;
+  document.getElementById('editStudentName').value = name;
+  document.getElementById('editStudentGrade').value = grade;
+
+  // 반 정보에서 숫자만 추출 (예: "1반" -> 1)
+  const classNumber = class_name ? class_name.replace('반', '') : '';
+  document.getElementById('editStudentClass').value = classNumber;
+
+  document.getElementById('editStudentEmail').value = email;
+  document.getElementById('editStudentPhone').value = phone;
+
+  document.getElementById('editStudentModal').style.display = 'block';
+}
+
+// 학생 정보 수정 모달 닫기
+function closeEditStudentModal() {
+  document.getElementById('editStudentModal').style.display = 'none';
+  document.getElementById('editStudentForm').reset();
+}
+
+// 학생 정보 수정 처리
+async function handleEditStudent(e) {
+  e.preventDefault();
+
+  const studentId = document.getElementById('editStudentId').value;
+  const name = document.getElementById('editStudentName').value.trim();
+  const grade = parseInt(document.getElementById('editStudentGrade').value);
+  const classNum = parseInt(document.getElementById('editStudentClass').value);
+  const email = document.getElementById('editStudentEmail').value.trim();
+  const phone = document.getElementById('editStudentPhone').value.trim();
+
+  // 유효성 검사
+  if (!name) {
+    alert('이름을 입력해주세요.');
+    return;
+  }
+
+  if (isNaN(grade) || grade < 1 || grade > 6) {
+    alert('올바른 학년을 선택해주세요.');
+    return;
+  }
+
+  if (isNaN(classNum) || classNum < 1 || classNum > 20) {
+    alert('올바른 반을 입력해주세요 (1-20).');
+    return;
+  }
+
+  const class_name = `${classNum}반`;
+
+  try {
+    const response = await fetch(`${API_URL}/users/students/${studentId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        name,
+        class_name,
+        grade,
+        email: email || null,
+        phone: phone || null
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(`학생 정보 수정에 실패했습니다\n\n오류: ${data.error || '알 수 없는 오류'}`);
+      return;
+    }
+
+    alert('학생 정보가 수정되었습니다');
+    closeEditStudentModal();
+
+    // 학생 목록 새로고침
+    await loadStudents();
+  } catch (error) {
+    console.error('Edit student error:', error);
+    alert('학생 정보 수정 중 오류가 발생했습니다');
+  }
+}
+
+// 학생 정보 수정 폼 이벤트 리스너 등록
+document.getElementById('editStudentForm').addEventListener('submit', handleEditStudent);
+
+// 교사 회원가입 모달 열기
+function showTeacherSignupModal() {
+  document.getElementById('teacherSignupModal').style.display = 'block';
+}
+
+// 교사 회원가입 모달 닫기
+function closeTeacherSignupModal() {
+  document.getElementById('teacherSignupModal').style.display = 'none';
+  document.getElementById('teacherSignupForm').reset();
+}
+
+// 교사 회원가입 처리
+async function handleTeacherSignup(e) {
+  e.preventDefault();
+
+  const school = document.getElementById('teacherSignupSchool').value.trim();
+  const gradeValue = document.getElementById('teacherSignupGrade').value;
+  const classValue = document.getElementById('teacherSignupClass').value;
+  const name = document.getElementById('teacherSignupName').value.trim();
+  const password = document.getElementById('teacherSignupPassword').value;
+  const passwordConfirm = document.getElementById('teacherSignupPasswordConfirm').value;
+  const email = document.getElementById('teacherSignupEmail').value.trim();
+  const privacyAgree = document.getElementById('teacherPrivacyAgree').checked;
+
+  // 유효성 검사
+  if (!school) {
+    alert('학교 이름을 입력해주세요.');
+    return;
+  }
+
+  if (!school.includes('초등학교')) {
+    alert('학교 이름은 "OO초등학교" 형식으로 입력해주세요.');
+    return;
+  }
+
+  if (!gradeValue || gradeValue === '') {
+    alert('담당 학년을 선택해주세요.');
+    return;
+  }
+
+  if (!classValue || classValue === '') {
+    alert('담임 반을 입력해주세요.');
+    return;
+  }
+
+  if (!name) {
+    alert('이름을 입력해주세요.');
+    return;
+  }
+
+  if (!password) {
+    alert('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  if (password.length < 4) {
+    alert('비밀번호는 최소 4자 이상이어야 합니다.');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    alert('비밀번호가 일치하지 않습니다.');
+    return;
+  }
+
+  if (!privacyAgree) {
+    alert('개인정보 수집 및 이용에 동의해야 합니다.');
+    return;
+  }
+
+  // 숫자 변환
+  const grade = parseInt(gradeValue);
+  const classNum = parseInt(classValue);
+
+  // 숫자 유효성 검사
+  if (isNaN(grade) || grade < 1 || grade > 6) {
+    alert('올바른 학년을 선택해주세요.');
+    return;
+  }
+
+  if (isNaN(classNum) || classNum < 1 || classNum > 20) {
+    alert('올바른 반을 입력해주세요 (1-20).');
+    return;
+  }
+
+  // class_name 생성
+  const className = `${classNum}반`;
+
+  const requestData = {
+    password: password,
+    role: 'teacher',
+    name: name,
+    class_name: className,
+    grade: grade,
+    email: email || null
+  };
+
+  console.log('교사 회원가입 요청 데이터:', {
+    ...requestData,
+    password: '****'
+  });
+
+  try {
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('교사 회원가입 실패:', data);
+      alert(`회원가입에 실패했습니다\n\n오류: ${data.error || '알 수 없는 오류'}`);
+      return;
+    }
+
+    alert(`교사 회원가입이 완료되었습니다!\n\n아이디: ${data.username}\n\n이 아이디로 로그인하세요.`);
+    closeTeacherSignupModal();
+
+    // 로그인 폼에 아이디 자동 입력
+    document.getElementById('username').value = data.username;
+    document.getElementById('password').focus();
+
+  } catch (error) {
+    console.error('Teacher signup error:', error);
+    alert('회원가입 중 오류가 발생했습니다');
+  }
+}
+
+// 학부모 회원가입 모달 열기
+function showParentSignupModal() {
+  document.getElementById('parentSignupModal').style.display = 'block';
+}
+
+// 학부모 회원가입 모달 닫기
+function closeParentSignupModal() {
+  document.getElementById('parentSignupModal').style.display = 'none';
+  document.getElementById('parentSignupForm').reset();
+}
+
+// 학부모 회원가입 처리
+async function handleParentSignup(e) {
+  e.preventDefault();
+
+  const name = document.getElementById('parentSignupName').value.trim();
+  const password = document.getElementById('parentSignupPassword').value;
+  const passwordConfirm = document.getElementById('parentSignupPasswordConfirm').value;
+  const email = document.getElementById('parentSignupEmail').value.trim();
+  const childName = document.getElementById('parentSignupChildName').value.trim();
+  const childSchool = document.getElementById('parentSignupChildSchool').value.trim();
+  const childGradeValue = document.getElementById('parentSignupChildGrade').value;
+  const childClassValue = document.getElementById('parentSignupChildClass').value;
+  const privacyAgree = document.getElementById('parentPrivacyAgree').checked;
+  const childDataAgree = document.getElementById('parentChildDataAgree').checked;
+
+  // 유효성 검사
+  if (!name) {
+    alert('학부모 이름을 입력해주세요.');
+    return;
+  }
+
+  if (!password) {
+    alert('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  if (password.length < 4) {
+    alert('비밀번호는 최소 4자 이상이어야 합니다.');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    alert('비밀번호가 일치하지 않습니다.');
+    return;
+  }
+
+  if (!childName) {
+    alert('자녀 이름을 입력해주세요.');
+    return;
+  }
+
+  if (!childSchool) {
+    alert('자녀 학교 이름을 입력해주세요.');
+    return;
+  }
+
+  if (!childSchool.includes('초등학교')) {
+    alert('학교 이름은 "OO초등학교" 형식으로 입력해주세요.');
+    return;
+  }
+
+  if (!childGradeValue || childGradeValue === '') {
+    alert('자녀 학년을 선택해주세요.');
+    return;
+  }
+
+  if (!childClassValue || childClassValue === '') {
+    alert('자녀 반을 입력해주세요.');
+    return;
+  }
+
+  if (!privacyAgree) {
+    alert('개인정보 수집 및 이용에 동의해야 합니다.');
+    return;
+  }
+
+  if (!childDataAgree) {
+    alert('자녀의 운동정보 수집 및 조회에 동의해야 합니다.');
+    return;
+  }
+
+  // 숫자 변환
+  const childGrade = parseInt(childGradeValue);
+  const childClassNum = parseInt(childClassValue);
+
+  // 숫자 유효성 검사
+  if (isNaN(childGrade) || childGrade < 1 || childGrade > 6) {
+    alert('올바른 학년을 선택해주세요.');
+    return;
+  }
+
+  if (isNaN(childClassNum) || childClassNum < 1 || childClassNum > 20) {
+    alert('올바른 반을 입력해주세요 (1-20).');
+    return;
+  }
+
+  const requestData = {
+    password: password,
+    role: 'parent',
+    name: name,
+    email: email || null,
+    child_name: childName,
+    child_grade: childGrade,
+    child_class: `${childClassNum}반`
+  };
+
+  console.log('학부모 회원가입 요청 데이터:', {
+    ...requestData,
+    password: '****'
+  });
+
+  try {
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('학부모 회원가입 실패:', data);
+      alert(`회원가입에 실패했습니다\n\n오류: ${data.error || '알 수 없는 오류'}`);
+      return;
+    }
+
+    alert(`학부모 회원가입이 완료되었습니다!\n\n아이디: ${data.username}\n\n이 아이디로 로그인하세요.\n\n자녀 "${childName}" 학생을 찾아 부모-자녀 관계를 설정하려면 관리자에게 문의하세요.`);
+    closeParentSignupModal();
+
+    // 로그인 폼에 아이디 자동 입력
+    document.getElementById('username').value = data.username;
+    document.getElementById('password').focus();
+
+  } catch (error) {
+    console.error('Parent signup error:', error);
+    alert('회원가입 중 오류가 발생했습니다');
+  }
+}
+
+// 교사 회원가입 폼 이벤트 리스너 등록
+document.getElementById('teacherSignupForm').addEventListener('submit', handleTeacherSignup);
+
+// 학부모 회원가입 폼 이벤트 리스너 등록
+document.getElementById('parentSignupForm').addEventListener('submit', handleParentSignup);

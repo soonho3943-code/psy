@@ -1,7 +1,7 @@
 {
   "name": "psy",
   "version": "1.0.0",
-  "description": "학생 운동 진행상태 관리 시스템",
+  "description": "함께런런 - 학생 운동 게이미피케이션 플랫폼",
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/server.ts",

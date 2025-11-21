@@ -25,8 +25,17 @@ export async function seedDatabase() {
   seedBadges();
 
   const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-  if (adminExists) {
-    console.log('Database already has admin account, checking for new users...');
+  const isFirstRun = !adminExists;
+
+  if (!isFirstRun) {
+    console.log('Cleaning up existing student data...');
+    // 기존 학생 데이터 삭제
+    db.prepare('DELETE FROM student_badges WHERE student_id IN (SELECT id FROM users WHERE role = \'student\')').run();
+    db.prepare('DELETE FROM exercise_records WHERE student_id IN (SELECT id FROM users WHERE role = \'student\')').run();
+    db.prepare('DELETE FROM parent_student_relations WHERE student_id IN (SELECT id FROM users WHERE role = \'student\')').run();
+    db.prepare('DELETE FROM users WHERE role = \'student\'').run();
+    db.prepare('DELETE FROM users WHERE role = \'parent\'').run();
+    console.log('Student data cleaned up');
   } else {
     console.log('Seeding database...');
   }
@@ -44,25 +53,24 @@ export async function seedDatabase() {
 
   // 교사 계정 (4명)
   const teachers = [
-    { username: 'teacher1', name: '김선생', class: '1반', email: 'kim@school.com' },
-    { username: 'teacher2', name: '이선생', class: '2반', email: 'lee@school.com' },
-    { username: 'teacher3', name: '박선생', class: '3반', email: 'park@school.com' },
-    { username: 'teacher4', name: '최선생', class: '4반', email: 'choi@school.com' },
+    { username: 'teacher1', name: '김선생', class: '1반', grade: 1, email: 'kim@school.com' },
+    { username: 'teacher2', name: '이선생', class: '2반', grade: 1, email: 'lee@school.com' },
+    { username: 'teacher3', name: '박선생', class: '3반', grade: 1, email: 'park@school.com' },
+    { username: 'teacher4', name: '최선생', class: '4반', grade: 1, email: 'choi@school.com' },
   ];
 
   teachers.forEach(teacher => {
     const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(teacher.username);
     if (!existing) {
       db.prepare(`
-        INSERT INTO users (username, password, role, name, class_name, email)
-        VALUES (?, ?, 'teacher', ?, ?, ?)
-      `).run(teacher.username, password, teacher.name, teacher.class, teacher.email);
+        INSERT INTO users (username, password, role, name, class_name, grade, email)
+        VALUES (?, ?, 'teacher', ?, ?, ?, ?)
+      `).run(teacher.username, password, teacher.name, teacher.class, teacher.grade, teacher.email);
       console.log(`Created teacher: ${teacher.name} (${teacher.username})`);
     }
   });
 
-  // 학생 계정 (모두 1학년 1반, 총 20명)
-  // username을 이름으로 사용
+  // 학생 계정 (1학년 1반 10명 + 1학년 2반 3명)
   const students = [
     { name: '김민준', class: '1반', grade: 1 },
     { name: '이서연', class: '1반', grade: 1 },
@@ -74,89 +82,41 @@ export async function seedDatabase() {
     { name: '윤하은', class: '1반', grade: 1 },
     { name: '장시우', class: '1반', grade: 1 },
     { name: '임채원', class: '1반', grade: 1 },
-    { name: '한지우', class: '1반', grade: 1 },
-    { name: '신유나', class: '1반', grade: 1 },
-    { name: '오태양', class: '1반', grade: 1 },
-    { name: '송하늘', class: '1반', grade: 1 },
-    { name: '배지안', class: '1반', grade: 1 },
-    { name: '권민서', class: '1반', grade: 1 },
-    { name: '남준호', class: '1반', grade: 1 },
-    { name: '문소희', class: '1반', grade: 1 },
-    { name: '표은지', class: '1반', grade: 1 },
-    { name: '노승우', class: '1반', grade: 1 },
+    { name: '2반테스트1', class: '2반', grade: 1 },
+    { name: '2반테스트2', class: '2반', grade: 1 },
+    { name: '2반테스트3', class: '2반', grade: 1 },
   ];
 
   const studentIds: number[] = [];
   students.forEach(student => {
-    // username을 이름으로 설정 (중복 시 숫자 추가)
-    let username = student.name;
-    let counter = 2;
-    let existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as { id: number } | undefined;
-
-    // 중복된 username이 있으면 숫자를 붙임
-    while (existing) {
-      const existingUser = db.prepare('SELECT name FROM users WHERE id = ?').get(existing.id) as { name: string } | undefined;
-      // 같은 이름의 사용자인 경우에만 숫자를 붙임
-      if (existingUser && existingUser.name === student.name) {
-        username = `${student.name}${counter}`;
-        counter++;
-        existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as { id: number } | undefined;
-      } else {
-        // 같은 username이지만 다른 이름인 경우 업데이트
-        db.prepare(`
-          UPDATE users SET name = ?, class_name = ?, grade = ? WHERE id = ?
-        `).run(student.name, student.class, student.grade, existing.id);
-        console.log(`Updated student: ${student.name} (${username}) to ${student.class}`);
-        studentIds.push(existing.id);
-        return;
-      }
-    }
-
-    // 새로운 학생 생성
     const result = db.prepare(`
       INSERT INTO users (username, password, role, name, class_name, grade)
       VALUES (?, ?, 'student', ?, ?, ?)
-    `).run(username, password, student.name, student.class, student.grade);
+    `).run(student.name, password, student.name, student.class, student.grade);
     studentIds.push(Number(result.lastInsertRowid));
-    console.log(`Created student: ${student.name} (${username})`);
+    console.log(`Created student: ${student.name}`);
   });
 
-  // 학부모 계정 (10명 - 각각 2명의 자녀)
+  // 학부모 계정 (5명 - 각각 2명의 자녀)
   const parents = [
     { username: 'parent1', name: '김부모', email: 'parent1@email.com', children: [0, 1] },
     { username: 'parent2', name: '이부모', email: 'parent2@email.com', children: [2, 3] },
     { username: 'parent3', name: '박부모', email: 'parent3@email.com', children: [4, 5] },
     { username: 'parent4', name: '최부모', email: 'parent4@email.com', children: [6, 7] },
     { username: 'parent5', name: '정부모', email: 'parent5@email.com', children: [8, 9] },
-    { username: 'parent6', name: '한부모', email: 'parent6@email.com', children: [10, 11] },
-    { username: 'parent7', name: '신부모', email: 'parent7@email.com', children: [12, 13] },
-    { username: 'parent8', name: '오부모', email: 'parent8@email.com', children: [14, 15] },
-    { username: 'parent9', name: '송부모', email: 'parent9@email.com', children: [16, 17] },
-    { username: 'parent10', name: '배부모', email: 'parent10@email.com', children: [18, 19] },
   ];
 
   parents.forEach(parent => {
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(parent.username) as { id: number } | undefined;
+    const result = db.prepare(`
+      INSERT INTO users (username, password, role, name, email)
+      VALUES (?, ?, 'parent', ?, ?)
+    `).run(parent.username, password, parent.name, parent.email);
+    const parentId = result.lastInsertRowid;
+    console.log(`Created parent: ${parent.name} (${parent.username})`);
 
-    let parentId;
-    if (existing) {
-      parentId = existing.id;
-    } else {
-      const result = db.prepare(`
-        INSERT INTO users (username, password, role, name, email)
-        VALUES (?, ?, 'parent', ?, ?)
-      `).run(parent.username, password, parent.name, parent.email);
-      parentId = result.lastInsertRowid;
-      console.log(`Created parent: ${parent.name} (${parent.username})`);
-    }
-
-    // 부모-자녀 관계 설정 (중복 체크)
+    // 부모-자녀 관계 설정
     parent.children.forEach(childIndex => {
-      const relationExists = db.prepare(
-        'SELECT id FROM parent_student_relations WHERE parent_id = ? AND student_id = ?'
-      ).get(parentId, studentIds[childIndex]);
-
-      if (!relationExists) {
+      if (studentIds[childIndex]) {
         db.prepare(`
           INSERT INTO parent_student_relations (parent_id, student_id)
           VALUES (?, ?)
@@ -165,32 +125,44 @@ export async function seedDatabase() {
     });
   });
 
-  // 샘플 운동 기록 (최근 7일)
+  // 다양한 운동 기록 생성 (각 학생마다 다른 패턴)
   const today = new Date();
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+  const exercisePatterns = [
+    { name: '김민준', days: 14, minSteps: 12000, maxSteps: 15000, active: true }, // 매우 활발
+    { name: '이서연', days: 10, minSteps: 8000, maxSteps: 12000, active: true },  // 활발
+    { name: '박지호', days: 7, minSteps: 5000, maxSteps: 8000, active: true },    // 보통
+    { name: '최수빈', days: 5, minSteps: 3000, maxSteps: 6000, active: false },   // 가끔
+    { name: '정예은', days: 12, minSteps: 10000, maxSteps: 14000, active: true }, // 매우 활발
+    { name: '강도윤', days: 3, minSteps: 2000, maxSteps: 5000, active: false },   // 드물게
+    { name: '조서준', days: 8, minSteps: 7000, maxSteps: 10000, active: true },   // 활발
+    { name: '윤하은', days: 14, minSteps: 9000, maxSteps: 13000, active: true },  // 매우 활발
+    { name: '장시우', days: 2, minSteps: 1000, maxSteps: 4000, active: false },   // 매우 드물게
+    { name: '임채원', days: 6, minSteps: 6000, maxSteps: 9000, active: false },   // 보통
+    { name: '2반테스트1', days: 10, minSteps: 8000, maxSteps: 11000, active: true }, // 활발
+    { name: '2반테스트2', days: 7, minSteps: 6000, maxSteps: 9000, active: true },   // 보통
+    { name: '2반테스트3', days: 5, minSteps: 4000, maxSteps: 7000, active: false },  // 가끔
+  ];
 
-    studentIds.forEach(studentId => {
-      // 이미 해당 날짜의 기록이 있는지 확인
-      const existingRecord = db.prepare(
-        'SELECT id FROM exercise_records WHERE student_id = ? AND date = ?'
-      ).get(studentId, dateStr);
+  studentIds.forEach((studentId, index) => {
+    const pattern = exercisePatterns[index];
 
-      if (!existingRecord) {
-        const steps = 5000 + Math.floor(Math.random() * 10000);
-        const minutes = 30 + Math.floor(Math.random() * 60);
-        const calories = 200 + Math.floor(Math.random() * 300);
-        const distance = 2 + Math.random() * 5;
+    // 최근 N일 동안의 기록 생성
+    for (let i = 0; i < pattern.days; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
 
-        db.prepare(`
-          INSERT INTO exercise_records (student_id, date, steps, exercise_minutes, calories, distance)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(studentId, dateStr, steps, minutes, calories, distance.toFixed(2));
-      }
-    });
-  }
+      const steps = pattern.minSteps + Math.floor(Math.random() * (pattern.maxSteps - pattern.minSteps));
+      const minutes = Math.floor(steps / 100); // 걸음수에 비례한 운동 시간
+      const calories = Math.floor(steps * 0.04); // 걸음수당 약 0.04 칼로리
+      const distance = (steps * 0.0008).toFixed(2); // 걸음수 * 평균 보폭
+
+      db.prepare(`
+        INSERT INTO exercise_records (student_id, date, steps, exercise_minutes, calories, distance)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(studentId, dateStr, steps, minutes, calories, distance);
+    }
+  });
 
   // 모든 학생의 뱃지 체크 및 부여
   console.log('Checking and awarding badges...');
@@ -203,5 +175,5 @@ export async function seedDatabase() {
   console.log('관리자 - username: admin, password: 1234');
   console.log('교사 - username: teacher1~4, password: 1234');
   console.log('학생 - username: 이름 (예: 김민준, 이서연, 박지호...), password: 1234');
-  console.log('학부모 - username: parent1~10, password: 1234');
+  console.log('학부모 - username: parent1~5, password: 1234');
 }

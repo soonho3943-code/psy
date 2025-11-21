@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>학생 운동 관리 시스템</title>
+  <title>함께런런</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container" id="loginPage">
     <div class="login-box">
-      <h1>학생 운동 관리 시스템</h1>
+      <h1>함께런런</h1>
       <form id="loginForm">
         <div class="form-group">
           <label for="username">아이디 (이름)</label>
@@ -20,9 +20,13 @@
           <input type="password" id="password" name="password" required>
         </div>
         <button type="submit" class="btn btn-primary">로그인</button>
-        <button type="button" class="btn btn-secondary" onclick="showSignupModal()" style="margin-top: 10px;">회원가입</button>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+          <button type="button" class="btn btn-signup-student" onclick="showSignupModal()" style="flex: 1;">학생<br>회원가입</button>
+          <button type="button" class="btn btn-signup-teacher" onclick="showTeacherSignupModal()" style="flex: 1;">교사<br>회원가입</button>
+          <button type="button" class="btn btn-signup-parent" onclick="showParentSignupModal()" style="flex: 1;">학부모<br>회원가입</button>
+        </div>
       </form>
-      <p class="hint">학생 계정이 없으신가요? 위의 회원가입 버튼을 클릭하세요!</p>
+      <p class="hint">계정이 없으신가요? 위의 회원가입 버튼을 클릭하세요!</p>
       <div class="test-accounts">
         <h3>테스트 계정</h3>
         <ul>
@@ -37,7 +41,7 @@
 
   <div class="container hidden" id="dashboardPage">
     <header>
-      <h1>학생 운동 관리 시스템</h1>
+      <h1>함께런런</h1>
       <div class="user-info">
         <span id="userInfo"></span>
         <button class="btn btn-secondary" onclick="logout()">로그아웃</button>
@@ -112,12 +116,12 @@
         <div class="student-selector" id="recordStudentSelector" style="display: none;">
           <label for="recordSelectedStudent">학생 선택:</label>
           <select id="recordSelectedStudent" onchange="loadRecords()">
-            <option value="">학생을 선택하세요</option>
+            <option value="">전체 명렬표</option>
           </select>
         </div>
 
         <table class="data-table">
-          <thead>
+          <thead id="recordsTableHead">
             <tr>
               <th>날짜</th>
               <th>걸음 수</th>
@@ -231,7 +235,7 @@
       <section id="students" class="tab-content">
         <h2>학생 목록</h2>
         <table class="data-table">
-          <thead>
+          <thead id="studentsTableHead">
             <tr>
               <th>이름</th>
               <th>반</th>
@@ -364,6 +368,243 @@
           <label class="checkbox-label">
             <input type="checkbox" id="privacyAgree" name="privacyAgree" required>
             <span>위 개인정보 수집 및 이용에 동의합니다 (필수)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">가입하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 학생 정보 수정 모달 -->
+  <div id="editStudentModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeEditStudentModal()">&times;</span>
+      <h2>학생 정보 수정</h2>
+      <form id="editStudentForm">
+        <input type="hidden" id="editStudentId" name="studentId">
+
+        <div class="form-group">
+          <label for="editStudentUsername">아이디</label>
+          <input type="text" id="editStudentUsername" disabled>
+          <small>아이디는 수정할 수 없습니다</small>
+        </div>
+
+        <div class="form-group">
+          <label for="editStudentName">이름 <span class="required">*</span></label>
+          <input type="text" id="editStudentName" name="name" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editStudentGrade">학년 <span class="required">*</span></label>
+            <select id="editStudentGrade" name="grade" required>
+              <option value="1">1학년</option>
+              <option value="2">2학년</option>
+              <option value="3">3학년</option>
+              <option value="4">4학년</option>
+              <option value="5">5학년</option>
+              <option value="6">6학년</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="editStudentClass">반 <span class="required">*</span></label>
+            <input type="number" id="editStudentClass" name="class" min="1" max="20" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="editStudentEmail">이메일</label>
+          <input type="email" id="editStudentEmail" name="email">
+        </div>
+
+        <div class="form-group">
+          <label for="editStudentPhone">전화번호</label>
+          <input type="tel" id="editStudentPhone" name="phone">
+        </div>
+
+        <button type="submit" class="btn btn-primary">저장</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 교사 회원가입 모달 -->
+  <div id="teacherSignupModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeTeacherSignupModal()">&times;</span>
+      <h2>교사 회원가입</h2>
+      <form id="teacherSignupForm">
+        <div class="form-group">
+          <label for="teacherSignupSchool">학교 이름 <span class="required">*</span></label>
+          <input type="text" id="teacherSignupSchool" name="school" placeholder="예: 서울초등학교" required>
+          <small>OO초등학교 형식으로 입력하세요</small>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="teacherSignupGrade">담당 학년 <span class="required">*</span></label>
+            <select id="teacherSignupGrade" name="grade" required>
+              <option value="">선택</option>
+              <option value="1">1학년</option>
+              <option value="2">2학년</option>
+              <option value="3">3학년</option>
+              <option value="4">4학년</option>
+              <option value="5">5학년</option>
+              <option value="6">6학년</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="teacherSignupClass">담임 반 <span class="required">*</span></label>
+            <input type="number" id="teacherSignupClass" name="class" min="1" max="20" placeholder="예: 1" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="teacherSignupName">이름 <span class="required">*</span></label>
+          <input type="text" id="teacherSignupName" name="name" placeholder="예: 홍길동" required>
+        </div>
+
+        <div class="form-group">
+          <label for="teacherSignupPassword">비밀번호 <span class="required">*</span></label>
+          <input type="password" id="teacherSignupPassword" name="password" minlength="4" placeholder="최소 4자 이상" required>
+        </div>
+
+        <div class="form-group">
+          <label for="teacherSignupPasswordConfirm">비밀번호 확인 <span class="required">*</span></label>
+          <input type="password" id="teacherSignupPasswordConfirm" name="passwordConfirm" minlength="4" placeholder="비밀번호를 다시 입력하세요" required>
+        </div>
+
+        <div class="form-group">
+          <label for="teacherSignupEmail">이메일 (선택)</label>
+          <input type="email" id="teacherSignupEmail" name="email" placeholder="예: teacher@email.com">
+        </div>
+
+        <div class="privacy-agreement">
+          <h3>개인정보 수집 및 이용 동의</h3>
+          <div class="privacy-content">
+            <p><strong>1. 수집하는 개인정보 항목</strong></p>
+            <p>학교명, 담당 학년, 담임 반, 이름, 이메일(선택), 비밀번호</p>
+
+            <p><strong>2. 개인정보의 수집 및 이용 목적</strong></p>
+            <p>- 교사 계정 관리<br>
+            - 담임 반 학생 운동 활동 기록 조회 및 관리<br>
+            - 학생 건강 증진 및 운동 습관 형성 지원</p>
+
+            <p><strong>3. 개인정보의 보유 및 이용 기간</strong></p>
+            <p>회원 탈퇴 시까지 보유하며, 탈퇴 즉시 모든 정보가 삭제됩니다.</p>
+
+            <p><strong>4. 동의 거부 권리 및 불이익</strong></p>
+            <p>개인정보 수집 및 이용에 대한 동의를 거부할 수 있으나, 동의하지 않을 경우 서비스 이용이 제한됩니다.</p>
+          </div>
+
+          <label class="checkbox-label">
+            <input type="checkbox" id="teacherPrivacyAgree" name="privacyAgree" required>
+            <span>위 개인정보 수집 및 이용에 동의합니다 (필수)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">가입하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 학부모 회원가입 모달 -->
+  <div id="parentSignupModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeParentSignupModal()">&times;</span>
+      <h2>학부모 회원가입</h2>
+      <form id="parentSignupForm">
+        <div class="form-group">
+          <label for="parentSignupName">학부모 이름 <span class="required">*</span></label>
+          <input type="text" id="parentSignupName" name="name" placeholder="예: 홍길동" required>
+        </div>
+
+        <div class="form-group">
+          <label for="parentSignupPassword">비밀번호 <span class="required">*</span></label>
+          <input type="password" id="parentSignupPassword" name="password" minlength="4" placeholder="최소 4자 이상" required>
+        </div>
+
+        <div class="form-group">
+          <label for="parentSignupPasswordConfirm">비밀번호 확인 <span class="required">*</span></label>
+          <input type="password" id="parentSignupPasswordConfirm" name="passwordConfirm" minlength="4" placeholder="비밀번호를 다시 입력하세요" required>
+        </div>
+
+        <div class="form-group">
+          <label for="parentSignupEmail">이메일 (선택)</label>
+          <input type="email" id="parentSignupEmail" name="email" placeholder="예: parent@email.com">
+        </div>
+
+        <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px; color: #333;">자녀 정보</h3>
+
+        <div class="form-group">
+          <label for="parentSignupChildName">자녀 이름 <span class="required">*</span></label>
+          <input type="text" id="parentSignupChildName" name="childName" placeholder="예: 홍길순" required>
+        </div>
+
+        <div class="form-group">
+          <label for="parentSignupChildSchool">자녀 학교 이름 <span class="required">*</span></label>
+          <input type="text" id="parentSignupChildSchool" name="childSchool" placeholder="예: 서울초등학교" required>
+          <small>OO초등학교 형식으로 입력하세요</small>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="parentSignupChildGrade">자녀 학년 <span class="required">*</span></label>
+            <select id="parentSignupChildGrade" name="childGrade" required>
+              <option value="">선택</option>
+              <option value="1">1학년</option>
+              <option value="2">2학년</option>
+              <option value="3">3학년</option>
+              <option value="4">4학년</option>
+              <option value="5">5학년</option>
+              <option value="6">6학년</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="parentSignupChildClass">자녀 반 <span class="required">*</span></label>
+            <input type="number" id="parentSignupChildClass" name="childClass" min="1" max="20" placeholder="예: 1" required>
+          </div>
+        </div>
+
+        <div class="privacy-agreement">
+          <h3>개인정보 수집 및 이용 동의</h3>
+          <div class="privacy-content">
+            <p><strong>1. 수집하는 개인정보 항목</strong></p>
+            <p>학부모 이름, 이메일(선택), 비밀번호, 자녀 이름, 자녀 학교, 자녀 학년, 자녀 반</p>
+
+            <p><strong>2. 개인정보의 수집 및 이용 목적</strong></p>
+            <p>- 학부모 계정 관리<br>
+            - 자녀 운동 활동 기록 조회<br>
+            - 자녀 건강 증진 및 운동 습관 형성 지원</p>
+
+            <p><strong>3. 개인정보의 보유 및 이용 기간</strong></p>
+            <p>회원 탈퇴 시까지 보유하며, 탈퇴 즉시 모든 정보가 삭제됩니다.</p>
+
+            <p><strong>4. 동의 거부 권리 및 불이익</strong></p>
+            <p>개인정보 수집 및 이용에 대한 동의를 거부할 수 있으나, 동의하지 않을 경우 서비스 이용이 제한됩니다.</p>
+          </div>
+
+          <label class="checkbox-label">
+            <input type="checkbox" id="parentPrivacyAgree" name="privacyAgree" required>
+            <span>위 개인정보 수집 및 이용에 동의합니다 (필수)</span>
+          </label>
+        </div>
+
+        <div class="privacy-agreement" style="margin-top: 15px;">
+          <h3>자녀 운동정보 수집 및 이용 동의</h3>
+          <div class="privacy-content">
+            <p>학부모 계정으로 자녀의 다음 운동정보를 조회할 수 있습니다:</p>
+            <p>- 스마트폰 및 웨어러블 기기로부터 수집된 걸음 수, 운동 시간, 칼로리 소모량, 이동 거리<br>
+            - 운동 목표 달성도 및 뱃지 획득 현황<br>
+            - 운동 기록 및 통계</p>
+          </div>
+
+          <label class="checkbox-label">
+            <input type="checkbox" id="parentChildDataAgree" name="childDataAgree" required>
+            <span>자녀의 운동정보 수집 및 조회에 동의합니다 (필수)</span>
           </label>
         </div>
 

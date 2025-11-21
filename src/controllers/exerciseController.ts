@@ -178,3 +178,52 @@ export const getStatistics = (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: '통계 조회 중 오류가 발생했습니다' });
   }
 };
+
+// 교사용: 담임반 학생들의 최근 운동 기록 조회
+export const getClassRecentRecords = (req: AuthRequest, res: Response) => {
+  try {
+    // 교사만 접근 가능
+    if (req.user?.role !== 'teacher') {
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+
+    // 교사의 담임반 정보 가져오기
+    const teacher = db.prepare('SELECT class_name FROM users WHERE id = ?').get(req.user.id) as { class_name: string } | undefined;
+
+    if (!teacher || !teacher.class_name) {
+      return res.status(400).json({ error: '담임반 정보가 없습니다' });
+    }
+
+    // 담임반 학생들의 최근 운동 기록 조회 (학생별로 가장 최근 기록만)
+    const records = db.prepare(`
+      SELECT
+        u.id as student_id,
+        u.name as student_name,
+        u.class_name,
+        u.grade,
+        e.date,
+        e.steps,
+        e.exercise_minutes,
+        e.calories,
+        e.distance,
+        e.notes
+      FROM users u
+      LEFT JOIN (
+        SELECT e1.*
+        FROM exercise_records e1
+        INNER JOIN (
+          SELECT student_id, MAX(date) as max_date
+          FROM exercise_records
+          GROUP BY student_id
+        ) e2 ON e1.student_id = e2.student_id AND e1.date = e2.max_date
+      ) e ON u.id = e.student_id
+      WHERE u.role = 'student' AND u.class_name = ?
+      ORDER BY COALESCE(e.steps, 0) DESC, u.name ASC
+    `).all(teacher.class_name);
+
+    res.json(records);
+  } catch (error) {
+    console.error('Get class recent records error:', error);
+    res.status(500).json({ error: '반 학생 기록 조회 중 오류가 발생했습니다' });
+  }
+};

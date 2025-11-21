@@ -18,9 +18,15 @@ export const getStudentBadges = (req: AuthRequest, res: Response) => {
   try {
     const { student_id } = req.params;
 
-    // 권한 체크
+    // 권한 체크: 학생은 같은 반 학생만 조회 가능
     if (req.user?.role === 'student' && req.user.id !== parseInt(student_id)) {
-      return res.status(403).json({ error: '권한이 없습니다' });
+      // 같은 반인지 확인
+      const currentStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(req.user.id) as any;
+      const targetStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(student_id) as any;
+
+      if (!targetStudent || currentStudent.class_name !== targetStudent.class_name || currentStudent.grade !== targetStudent.grade) {
+        return res.status(403).json({ error: '같은 반 학생만 조회할 수 있습니다' });
+      }
     }
 
     const badges = db.prepare(`
@@ -70,9 +76,15 @@ export const getStudentBadgeProgress = (req: AuthRequest, res: Response) => {
   try {
     const { student_id } = req.params;
 
-    // 권한 체크
+    // 권한 체크: 학생은 같은 반 학생만 조회 가능
     if (req.user?.role === 'student' && req.user.id !== parseInt(student_id)) {
-      return res.status(403).json({ error: '권한이 없습니다' });
+      // 같은 반인지 확인
+      const currentStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(req.user.id) as any;
+      const targetStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(student_id) as any;
+
+      if (!targetStudent || currentStudent.class_name !== targetStudent.class_name || currentStudent.grade !== targetStudent.grade) {
+        return res.status(403).json({ error: '같은 반 학생만 조회할 수 있습니다' });
+      }
     }
 
     const progress = db.prepare(`
@@ -97,9 +109,15 @@ export const getBadgeStats = (req: AuthRequest, res: Response) => {
   try {
     const { student_id } = req.params;
 
-    // 권한 체크
+    // 권한 체크: 학생은 같은 반 학생만 조회 가능
     if (req.user?.role === 'student' && req.user.id !== parseInt(student_id)) {
-      return res.status(403).json({ error: '권한이 없습니다' });
+      // 같은 반인지 확인
+      const currentStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(req.user.id) as any;
+      const targetStudent = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(student_id) as any;
+
+      if (!targetStudent || currentStudent.class_name !== targetStudent.class_name || currentStudent.grade !== targetStudent.grade) {
+        return res.status(403).json({ error: '같은 반 학생만 조회할 수 있습니다' });
+      }
     }
 
     const stats = db.prepare(`
