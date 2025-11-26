@@ -52,6 +52,7 @@
       <button class="tab-btn active" data-tab="dashboard">대시보드</button>
       <button class="tab-btn" data-tab="records">운동 기록</button>
       <button class="tab-btn" data-tab="badges">획득 뱃지</button>
+      <button class="tab-btn" data-tab="board">런런톡</button>
       <button class="tab-btn" data-tab="students" id="studentsTab">학생 관리</button>
     </nav>
 
@@ -227,6 +228,20 @@
           <h3>뱃지 목록</h3>
           <div class="badge-grid" id="badgeGrid">
             <p class="text-center">뱃지 정보를 불러오는 중...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 런런톡 탭 -->
+      <section id="board" class="tab-content">
+        <div class="section-header">
+          <h2>런런톡</h2>
+          <button class="btn btn-primary" onclick="showCreatePostModal()">글쓰기</button>
+        </div>
+
+        <div class="board-container">
+          <div class="posts-list" id="postsList">
+            <p class="text-center">게시글을 불러오는 중...</p>
           </div>
         </div>
       </section>
@@ -609,6 +624,79 @@
         </div>
 
         <button type="submit" class="btn btn-primary">가입하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 게시글 작성 모달 -->
+  <div id="createPostModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeCreatePostModal()">&times;</span>
+      <h2>게시글 작성</h2>
+      <form id="createPostForm">
+        <div class="form-group">
+          <label for="postTitle">제목 <span class="required">*</span></label>
+          <input type="text" id="postTitle" name="title" placeholder="제목을 입력하세요" required>
+        </div>
+        <div class="form-group">
+          <label for="postContent">내용 <span class="required">*</span></label>
+          <textarea id="postContent" name="content" rows="10" placeholder="내용을 입력하세요" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">작성하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 게시글 상세 모달 -->
+  <div id="postDetailModal" class="modal">
+    <div class="modal-content modal-large">
+      <span class="close" onclick="closePostDetailModal()">&times;</span>
+      <div id="postDetailContent">
+        <div class="post-detail-header">
+          <h2 id="detailPostTitle"></h2>
+          <div class="post-meta">
+            <span id="detailPostAuthor"></span>
+            <span id="detailPostDate"></span>
+          </div>
+        </div>
+        <div class="post-detail-body">
+          <p id="detailPostContent"></p>
+        </div>
+        <div class="post-actions" id="postActions" style="display: none;">
+          <button class="btn btn-secondary btn-sm" onclick="editPost()">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePost()">삭제</button>
+        </div>
+
+        <div class="comments-section">
+          <h3>댓글 <span id="commentCount">0</span></h3>
+          <div class="comment-form">
+            <textarea id="commentContent" placeholder="댓글을 입력하세요" rows="3"></textarea>
+            <button class="btn btn-primary btn-sm" onclick="addComment()">댓글 작성</button>
+          </div>
+          <div class="comments-list" id="commentsList">
+            <p class="text-center">댓글이 없습니다</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 게시글 수정 모달 -->
+  <div id="editPostModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeEditPostModal()">&times;</span>
+      <h2>게시글 수정</h2>
+      <form id="editPostForm">
+        <input type="hidden" id="editPostId">
+        <div class="form-group">
+          <label for="editPostTitle">제목 <span class="required">*</span></label>
+          <input type="text" id="editPostTitle" name="title" required>
+        </div>
+        <div class="form-group">
+          <label for="editPostContent">내용 <span class="required">*</span></label>
+          <textarea id="editPostContent" name="content" rows="10" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">수정하기</button>
       </form>
     </div>
   </div>

@@ -148,6 +148,8 @@ function switchTab(tabName) {
     loadRecords();
   } else if (tabName === 'badges') {
     loadBadges();
+  } else if (tabName === 'board') {
+    loadPosts();
   } else if (tabName === 'students') {
     loadStudents();
   }
@@ -1381,3 +1383,357 @@ document.getElementById('teacherSignupForm').addEventListener('submit', handleTe
 
 // 학부모 회원가입 폼 이벤트 리스너 등록
 document.getElementById('parentSignupForm').addEventListener('submit', handleParentSignup);
+
+// ==================== 런런톡 게시판 기능 ====================
+
+// 역할별 이모티콘 반환
+function getRoleIcon(role) {
+  const icons = {
+    student: '🎒',
+    teacher: '👨‍🏫',
+    parent: '👪',
+    admin: '⚙️'
+  };
+  return icons[role] || '👤';
+}
+
+// 날짜 포맷팅
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now - date;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return '방금 전';
+  if (minutes < 60) return `${minutes}분 전`;
+  if (hours < 24) return `${hours}시간 전`;
+  if (days < 7) return `${days}일 전`;
+
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+// 전역 변수로 현재 보고 있는 게시글 ID 저장
+let currentPostId = null;
+
+// 게시글 목록 로드
+async function loadPosts() {
+  try {
+    const response = await fetch(`${API_URL}/board/posts`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to load posts');
+
+    const data = await response.json();
+    const postsList = document.getElementById('postsList');
+
+    if (!data.posts || data.posts.length === 0) {
+      postsList.innerHTML = '<p class="text-center empty-message">아직 작성된 게시글이 없습니다.</p>';
+      return;
+    }
+
+    postsList.innerHTML = data.posts.map(post => `
+      <div class="post-item" onclick="viewPost(${post.id})">
+        <div class="post-item-header">
+          <h3 class="post-item-title">${escapeHtml(post.title)}</h3>
+        </div>
+        <div class="post-item-content">${escapeHtml(post.content)}</div>
+        <div class="post-item-footer">
+          <div class="post-item-meta">
+            <span class="post-author">
+              <span class="role-icon">${getRoleIcon(post.author_role)}</span>
+              ${escapeHtml(post.author_name)}
+            </span>
+            <span>${formatDate(post.created_at)}</span>
+          </div>
+          <span class="comment-count">💬 ${post.comment_count}</span>
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Error loading posts:', error);
+    document.getElementById('postsList').innerHTML = '<p class="text-center empty-message">게시글을 불러오는데 실패했습니다.</p>';
+  }
+}
+
+// HTML 이스케이프 함수
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 게시글 상세 보기
+async function viewPost(postId) {
+  currentPostId = postId;
+
+  try {
+    const response = await fetch(`${API_URL}/board/posts/${postId}`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to load post');
+
+    const data = await response.json();
+    const post = data.post;
+    const comments = data.comments;
+
+    // 게시글 내용 채우기
+    document.getElementById('detailPostTitle').textContent = post.title;
+    document.getElementById('detailPostAuthor').innerHTML = `
+      <span class="role-icon">${getRoleIcon(post.author_role)}</span>
+      ${post.author_name}
+    `;
+    document.getElementById('detailPostDate').textContent = formatDate(post.created_at);
+    document.getElementById('detailPostContent').textContent = post.content;
+
+    // 작성자 본인이거나 관리자인 경우 수정/삭제 버튼 표시
+    const postActions = document.getElementById('postActions');
+    if (currentUser.id === post.user_id || currentUser.role === 'admin') {
+      postActions.style.display = 'flex';
+    } else {
+      postActions.style.display = 'none';
+    }
+
+    // 댓글 표시
+    displayComments(comments);
+
+    // 모달 열기
+    document.getElementById('postDetailModal').style.display = 'block';
+  } catch (error) {
+    console.error('Error loading post:', error);
+    alert('게시글을 불러오는데 실패했습니다.');
+  }
+}
+
+// 댓글 표시
+function displayComments(comments) {
+  const commentsList = document.getElementById('commentsList');
+  const commentCount = document.getElementById('commentCount');
+
+  commentCount.textContent = comments.length;
+
+  if (!comments || comments.length === 0) {
+    commentsList.innerHTML = '<p class="text-center empty-message">댓글이 없습니다</p>';
+    return;
+  }
+
+  commentsList.innerHTML = comments.map(comment => `
+    <div class="comment-item">
+      <div class="comment-header">
+        <span class="comment-author">
+          <span class="role-icon">${getRoleIcon(comment.author_role)}</span>
+          ${escapeHtml(comment.author_name)}
+        </span>
+        <div>
+          <span class="comment-date">${formatDate(comment.created_at)}</span>
+          ${currentUser.id === comment.user_id || currentUser.role === 'admin' ?
+            `<button class="btn btn-danger btn-sm" onclick="deleteComment(${comment.id})" style="margin-left: 10px;">삭제</button>` :
+            ''}
+        </div>
+      </div>
+      <div class="comment-content">${escapeHtml(comment.content)}</div>
+    </div>
+  `).join('');
+}
+
+// 게시글 작성 모달 열기
+function showCreatePostModal() {
+  document.getElementById('createPostModal').style.display = 'block';
+  document.getElementById('postTitle').value = '';
+  document.getElementById('postContent').value = '';
+}
+
+// 게시글 작성 모달 닫기
+function closeCreatePostModal() {
+  document.getElementById('createPostModal').style.display = 'none';
+}
+
+// 게시글 상세 모달 닫기
+function closePostDetailModal() {
+  document.getElementById('postDetailModal').style.display = 'none';
+  currentPostId = null;
+}
+
+// 게시글 수정 모달 열기
+function editPost() {
+  const title = document.getElementById('detailPostTitle').textContent;
+  const content = document.getElementById('detailPostContent').textContent;
+
+  document.getElementById('editPostId').value = currentPostId;
+  document.getElementById('editPostTitle').value = title;
+  document.getElementById('editPostContent').value = content;
+
+  closePostDetailModal();
+  document.getElementById('editPostModal').style.display = 'block';
+}
+
+// 게시글 수정 모달 닫기
+function closeEditPostModal() {
+  document.getElementById('editPostModal').style.display = 'none';
+}
+
+// 게시글 작성
+document.getElementById('createPostForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const title = document.getElementById('postTitle').value;
+  const content = document.getElementById('postContent').value;
+
+  try {
+    const response = await fetch(`${API_URL}/board/posts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ title, content })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || '게시글 작성에 실패했습니다.');
+      return;
+    }
+
+    alert('게시글이 작성되었습니다!');
+    closeCreatePostModal();
+    loadPosts();
+  } catch (error) {
+    console.error('Error creating post:', error);
+    alert('게시글 작성 중 오류가 발생했습니다.');
+  }
+});
+
+// 게시글 수정
+document.getElementById('editPostForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const postId = document.getElementById('editPostId').value;
+  const title = document.getElementById('editPostTitle').value;
+  const content = document.getElementById('editPostContent').value;
+
+  try {
+    const response = await fetch(`${API_URL}/board/posts/${postId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ title, content })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || '게시글 수정에 실패했습니다.');
+      return;
+    }
+
+    alert('게시글이 수정되었습니다!');
+    closeEditPostModal();
+    loadPosts();
+  } catch (error) {
+    console.error('Error updating post:', error);
+    alert('게시글 수정 중 오류가 발생했습니다.');
+  }
+});
+
+// 게시글 삭제
+async function deletePost() {
+  if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/board/posts/${currentPostId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || '게시글 삭제에 실패했습니다.');
+      return;
+    }
+
+    alert('게시글이 삭제되었습니다.');
+    closePostDetailModal();
+    loadPosts();
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    alert('게시글 삭제 중 오류가 발생했습니다.');
+  }
+}
+
+// 댓글 작성
+async function addComment() {
+  const content = document.getElementById('commentContent').value.trim();
+
+  if (!content) {
+    alert('댓글 내용을 입력해주세요.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/board/posts/${currentPostId}/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ content })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || '댓글 작성에 실패했습니다.');
+      return;
+    }
+
+    // 댓글 입력창 초기화
+    document.getElementById('commentContent').value = '';
+
+    // 게시글 다시 로드하여 댓글 목록 업데이트
+    viewPost(currentPostId);
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    alert('댓글 작성 중 오류가 발생했습니다.');
+  }
+}
+
+// 댓글 삭제
+async function deleteComment(commentId) {
+  if (!confirm('정말로 이 댓글을 삭제하시겠습니까?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/board/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || '댓글 삭제에 실패했습니다.');
+      return;
+    }
+
+    // 게시글 다시 로드하여 댓글 목록 업데이트
+    viewPost(currentPostId);
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    alert('댓글 삭제 중 오류가 발생했습니다.');
+  }
+}
