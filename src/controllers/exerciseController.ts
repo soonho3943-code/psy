@@ -227,3 +227,80 @@ export const getClassRecentRecords = (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: '반 학생 기록 조회 중 오류가 발생했습니다' });
   }
 };
+
+// 주간 통계 그래프 데이터 조회 (개인 + 학급 평균)
+export const getWeeklyChartData = (req: AuthRequest, res: Response) => {
+  try {
+    const { student_id } = req.query;
+    let targetStudentId = student_id;
+
+    if (req.user?.role === 'student') {
+      targetStudentId = req.user.id.toString();
+    }
+
+    if (!targetStudentId) {
+      return res.status(400).json({ error: '학생 ID가 필요합니다' });
+    }
+
+    // 학생의 반 정보 가져오기
+    const student = db.prepare('SELECT class_name, grade FROM users WHERE id = ?').get(targetStudentId) as { class_name: string; grade: number } | undefined;
+
+    if (!student) {
+      return res.status(404).json({ error: '학생을 찾을 수 없습니다' });
+    }
+
+    // 지난 7일 날짜 생성
+    const dates: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+
+    // 개인 데이터 조회
+    const personalData = db.prepare(`
+      SELECT date, steps, exercise_minutes
+      FROM exercise_records
+      WHERE student_id = ? AND date >= ?
+      ORDER BY date ASC
+    `).all(targetStudentId, dates[0]) as Array<{ date: string; steps: number; exercise_minutes: number }>;
+
+    // 날짜별로 매핑
+    const personalMap = new Map(personalData.map(record => [record.date, record]));
+    const personalSteps = dates.map(date => personalMap.get(date)?.steps || 0);
+    const personalMinutes = dates.map(date => personalMap.get(date)?.exercise_minutes || 0);
+
+    // 학급 평균 데이터 조회 (같은 반 학생들의 평균)
+    const classAverageData = db.prepare(`
+      SELECT
+        e.date,
+        AVG(e.steps) as avg_steps,
+        AVG(e.exercise_minutes) as avg_minutes
+      FROM exercise_records e
+      INNER JOIN users u ON e.student_id = u.id
+      WHERE u.class_name = ? AND e.date >= ?
+      GROUP BY e.date
+      ORDER BY e.date ASC
+    `).all(student.class_name, dates[0]) as Array<{ date: string; avg_steps: number; avg_minutes: number }>;
+
+    // 날짜별로 매핑
+    const classMap = new Map(classAverageData.map(record => [record.date, record]));
+    const classAvgSteps = dates.map(date => Math.round(classMap.get(date)?.avg_steps || 0));
+    const classAvgMinutes = dates.map(date => Math.round(classMap.get(date)?.avg_minutes || 0));
+
+    res.json({
+      dates,
+      personal: {
+        steps: personalSteps,
+        minutes: personalMinutes
+      },
+      classAverage: {
+        steps: classAvgSteps,
+        minutes: classAvgMinutes
+      }
+    });
+  } catch (error) {
+    console.error('Get weekly chart data error:', error);
+    res.status(500).json({ error: '주간 데이터 조회 중 오류가 발생했습니다' });
+  }
+};

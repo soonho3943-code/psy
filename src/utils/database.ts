@@ -124,6 +124,22 @@ export function initializeDatabase() {
     )
   `);
 
+  // Physical records table - 신체 기록
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS physical_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      height REAL NOT NULL,
+      weight REAL NOT NULL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(student_id, date)
+    )
+  `);
+
   console.log('Database initialized successfully');
 }
 

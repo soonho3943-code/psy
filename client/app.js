@@ -30,8 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // 기록 추가 폼 제출
   document.getElementById('addRecordForm').addEventListener('submit', handleAddRecord);
 
+  // 신체 기록 추가 폼 제출
+  document.getElementById('addPhysicalForm').addEventListener('submit', handleAddPhysical);
+
   // 오늘 날짜를 기본값으로 설정
   document.getElementById('recordDate').valueAsDate = new Date();
+  document.getElementById('physicalDate').valueAsDate = new Date();
 });
 
 // 로그인 처리
@@ -146,6 +150,8 @@ function switchTab(tabName) {
     loadDashboard();
   } else if (tabName === 'records') {
     loadRecords();
+  } else if (tabName === 'physical') {
+    loadPhysicalRecords();
   } else if (tabName === 'badges') {
     loadBadges();
   } else if (tabName === 'board') {
@@ -196,10 +202,21 @@ async function loadStudentsList() {
       badgeSelector.appendChild(option);
     });
 
+    // 신체 기록 탭 학생 선택
+    const physicalSelector = document.getElementById('physicalSelectedStudent');
+    physicalSelector.innerHTML = '<option value="">학생을 선택하세요</option>';
+    students.forEach(student => {
+      const option = document.createElement('option');
+      option.value = student.id;
+      option.textContent = `${student.name} (${student.class_name || '-'})`;
+      physicalSelector.appendChild(option);
+    });
+
     // 학생 선택기 표시
     if (currentUser.role !== 'student') {
       document.getElementById('studentSelector').style.display = 'block';
       document.getElementById('recordStudentSelector').style.display = 'block';
+      document.getElementById('physicalStudentSelector').style.display = 'block';
     }
 
     // 모든 사용자가 뱃지 탭에서 다른 학생 선택 가능
@@ -254,6 +271,18 @@ async function loadDashboard() {
       document.getElementById('avgMinutes').textContent = `${Math.round(stats.avg_minutes || 0)}분`;
       document.getElementById('totalDays').textContent = `${stats.total_days || 0}일`;
       document.getElementById('totalCalories').textContent = `${Math.round(stats.total_calories || 0).toLocaleString()}kcal`;
+    }
+
+    // 주간 그래프 데이터 로드
+    const chartResponse = await fetch(
+      `${API_URL}/exercise/weekly-chart-data?student_id=${studentId}`,
+      { headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+
+    if (chartResponse.ok) {
+      const chartData = await chartResponse.json();
+      drawStepsChart(chartData);
+      drawMinutesChart(chartData);
     }
   } catch (error) {
     console.error('Load dashboard error:', error);
@@ -545,9 +574,145 @@ async function deleteRecord(id) {
 
 // 모달 외부 클릭 시 닫기
 window.onclick = function(event) {
-  const modal = document.getElementById('addRecordModal');
-  if (event.target === modal) {
+  const addRecordModal = document.getElementById('addRecordModal');
+  const addPhysicalModal = document.getElementById('addPhysicalModal');
+
+  if (event.target === addRecordModal) {
     closeAddRecordModal();
+  } else if (event.target === addPhysicalModal) {
+    closeAddPhysicalModal();
+  }
+}
+
+// ============ 신체 기록 관련 함수 ============
+
+// 신체 기록 로드
+async function loadPhysicalRecords() {
+  try {
+    const studentId = currentUser.role === 'student'
+      ? currentUser.id
+      : document.getElementById('physicalSelectedStudent')?.value;
+
+    if (!studentId && currentUser.role !== 'student') {
+      document.getElementById('physicalRecordsTableBody').innerHTML =
+        '<tr><td colspan="6" class="text-center">학생을 선택하세요</td></tr>';
+      return;
+    }
+
+    const response = await fetch(
+      `${API_URL}/physical/records?student_id=${studentId}`,
+      { headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+
+    if (!response.ok) throw new Error('Failed to load physical records');
+
+    const records = await response.json();
+    const tbody = document.getElementById('physicalRecordsTableBody');
+
+    if (records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center">기록이 없습니다</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = records.map(record => {
+      // BMI 계산 (키는 cm에서 m로 변환)
+      const heightInMeters = record.height / 100;
+      const bmi = (record.weight / (heightInMeters * heightInMeters)).toFixed(1);
+
+      return `
+        <tr>
+          <td>${record.date}</td>
+          <td>${record.height}</td>
+          <td>${record.weight}</td>
+          <td>${bmi}</td>
+          <td>${record.notes || '-'}</td>
+          <td>
+            <button class="btn btn-danger" onclick="deletePhysicalRecord(${record.id})">삭제</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Load physical records error:', error);
+  }
+}
+
+// 신체 기록 추가 모달
+function showAddPhysicalModal() {
+  document.getElementById('addPhysicalModal').style.display = 'block';
+}
+
+function closeAddPhysicalModal() {
+  document.getElementById('addPhysicalModal').style.display = 'none';
+  document.getElementById('addPhysicalForm').reset();
+  document.getElementById('physicalDate').valueAsDate = new Date();
+}
+
+// 신체 기록 추가
+async function handleAddPhysical(e) {
+  e.preventDefault();
+
+  const formData = new FormData(e.target);
+  const data = Object.fromEntries(formData.entries());
+
+  // 학생 ID 설정
+  if (currentUser.role === 'student') {
+    data.student_id = currentUser.id;
+  } else {
+    data.student_id = document.getElementById('physicalSelectedStudent').value;
+    if (!data.student_id) {
+      alert('학생을 선택하세요');
+      return;
+    }
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/physical/records`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || '신체 기록 추가에 실패했습니다');
+      return;
+    }
+
+    alert('신체 기록이 추가되었습니다');
+    closeAddPhysicalModal();
+    loadPhysicalRecords();
+  } catch (error) {
+    console.error('Add physical record error:', error);
+    alert('신체 기록 추가 중 오류가 발생했습니다');
+  }
+}
+
+// 신체 기록 삭제
+async function deletePhysicalRecord(id) {
+  if (!confirm('정말 삭제하시겠습니까?')) return;
+
+  try {
+    const response = await fetch(`${API_URL}/physical/records/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      alert(result.error || '삭제에 실패했습니다');
+      return;
+    }
+
+    alert('신체 기록이 삭제되었습니다');
+    loadPhysicalRecords();
+  } catch (error) {
+    console.error('Delete physical record error:', error);
+    alert('삭제 중 오류가 발생했습니다');
   }
 }
 
@@ -1736,4 +1901,326 @@ async function deleteComment(commentId) {
     console.error('Error deleting comment:', error);
     alert('댓글 삭제 중 오류가 발생했습니다.');
   }
+}
+
+// ==================== 그래프 그리기 함수 ====================
+
+// 차트 데이터 저장 (툴팁용)
+let stepsChartData = null;
+let minutesChartData = null;
+
+// 걸음 수 그래프 그리기
+function drawStepsChart(data) {
+  const canvas = document.getElementById('stepsChart');
+  if (!canvas) return;
+
+  // 데이터 저장
+  stepsChartData = data;
+
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // 캔버스 초기화
+  ctx.clearRect(0, 0, width, height);
+
+  // 패딩 설정
+  const padding = { top: 30, right: 30, bottom: 60, left: 60 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  // 최대값 계산
+  const maxPersonal = Math.max(...data.personal.steps, 0);
+  const maxClass = Math.max(...data.classAverage.steps, 0);
+  const maxValue = Math.max(maxPersonal, maxClass);
+  const yMax = Math.ceil(maxValue / 1000) * 1000 || 10000;
+
+  // 격자선 그리기
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 1;
+  const gridLines = 5;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = padding.top + (chartHeight / gridLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + chartWidth, y);
+    ctx.stroke();
+
+    // Y축 레이블
+    const value = yMax - (yMax / gridLines) * i;
+    ctx.fillStyle = '#666';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(value.toLocaleString(), padding.left - 10, y + 4);
+  }
+
+  // X축 레이블 (날짜)
+  const pointCount = data.dates.length;
+  const xStep = chartWidth / (pointCount - 1);
+
+  data.dates.forEach((date, i) => {
+    const x = padding.left + xStep * i;
+    const dateObj = new Date(date);
+    const label = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+
+    ctx.fillStyle = '#666';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, height - padding.bottom + 20);
+  });
+
+  // 학급 평균 선 그리기 (오렌지)
+  drawLine(ctx, data.classAverage.steps, data.dates.length, chartWidth, chartHeight, padding, yMax, '#FF9800', 3);
+
+  // 개인 데이터 선 그리기 (초록)
+  drawLine(ctx, data.personal.steps, data.dates.length, chartWidth, chartHeight, padding, yMax, '#4CAF50', 3);
+
+  // 포인트 그리기
+  drawPoints(ctx, data.classAverage.steps, data.dates.length, chartWidth, chartHeight, padding, yMax, '#FF9800');
+  drawPoints(ctx, data.personal.steps, data.dates.length, chartWidth, chartHeight, padding, yMax, '#4CAF50');
+
+  // 이벤트 리스너 추가 (기존 리스너 제거 후 새로 추가)
+  setupChartTooltip(canvas, 'stepsChartTooltip', data, padding, chartWidth, chartHeight, yMax, 'steps');
+}
+
+// 운동 시간 그래프 그리기
+function drawMinutesChart(data) {
+  const canvas = document.getElementById('minutesChart');
+  if (!canvas) return;
+
+  // 데이터 저장
+  minutesChartData = data;
+
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // 캔버스 초기화
+  ctx.clearRect(0, 0, width, height);
+
+  // 패딩 설정
+  const padding = { top: 30, right: 30, bottom: 60, left: 60 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  // 최대값 계산
+  const maxPersonal = Math.max(...data.personal.minutes, 0);
+  const maxClass = Math.max(...data.classAverage.minutes, 0);
+  const maxValue = Math.max(maxPersonal, maxClass);
+  const yMax = Math.ceil(maxValue / 10) * 10 || 60;
+
+  // 격자선 그리기
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 1;
+  const gridLines = 5;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = padding.top + (chartHeight / gridLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + chartWidth, y);
+    ctx.stroke();
+
+    // Y축 레이블
+    const value = yMax - (yMax / gridLines) * i;
+    ctx.fillStyle = '#666';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(value.toLocaleString(), padding.left - 10, y + 4);
+  }
+
+  // X축 레이블 (날짜)
+  const pointCount = data.dates.length;
+  const xStep = chartWidth / (pointCount - 1);
+
+  data.dates.forEach((date, i) => {
+    const x = padding.left + xStep * i;
+    const dateObj = new Date(date);
+    const label = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+
+    ctx.fillStyle = '#666';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, height - padding.bottom + 20);
+  });
+
+  // 학급 평균 선 그리기 (핑크)
+  drawLine(ctx, data.classAverage.minutes, data.dates.length, chartWidth, chartHeight, padding, yMax, '#E91E63', 3);
+
+  // 개인 데이터 선 그리기 (파랑)
+  drawLine(ctx, data.personal.minutes, data.dates.length, chartWidth, chartHeight, padding, yMax, '#2196F3', 3);
+
+  // 포인트 그리기
+  drawPoints(ctx, data.classAverage.minutes, data.dates.length, chartWidth, chartHeight, padding, yMax, '#E91E63');
+  drawPoints(ctx, data.personal.minutes, data.dates.length, chartWidth, chartHeight, padding, yMax, '#2196F3');
+
+  // 이벤트 리스너 추가
+  setupChartTooltip(canvas, 'minutesChartTooltip', data, padding, chartWidth, chartHeight, yMax, 'minutes');
+}
+
+// 차트 툴팁 설정
+function setupChartTooltip(canvas, tooltipId, data, padding, chartWidth, chartHeight, yMax, type) {
+  const tooltip = document.getElementById(tooltipId);
+  if (!tooltip) return;
+
+  const pointCount = data.dates.length;
+  const xStep = chartWidth / (pointCount - 1);
+
+  // 마우스 이벤트
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const isNearPoint = showTooltip(x, y, tooltip, data, padding, xStep, yMax, chartHeight, type);
+
+    // 점 근처에 있을 때 커서 변경
+    canvas.style.cursor = isNearPoint ? 'pointer' : 'default';
+  };
+
+  canvas.onmouseleave = () => {
+    tooltip.style.display = 'none';
+    canvas.style.cursor = 'default';
+  };
+
+  // 터치 이벤트 (모바일)
+  canvas.ontouchstart = canvas.ontouchmove = (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    showTooltip(x, y, tooltip, data, padding, xStep, yMax, chartHeight, type);
+  };
+
+  canvas.ontouchend = () => {
+    tooltip.style.display = 'none';
+  };
+}
+
+// 툴팁 표시
+function showTooltip(mouseX, mouseY, tooltip, data, padding, xStep, yMax, chartHeight, type) {
+  // 차트 영역 내에 있는지 확인
+  if (mouseX < padding.left || mouseX > padding.left + (xStep * (data.dates.length - 1))) {
+    tooltip.style.display = 'none';
+    return false;
+  }
+
+  // 가장 가까운 데이터 포인트 찾기
+  const relativeX = mouseX - padding.left;
+  const index = Math.round(relativeX / xStep);
+
+  if (index < 0 || index >= data.dates.length) {
+    tooltip.style.display = 'none';
+    return false;
+  }
+
+  // 데이터 가져오기
+  let personalValue, classValue;
+  if (type === 'steps') {
+    personalValue = data.personal.steps[index];
+    classValue = data.classAverage.steps[index];
+  } else {
+    personalValue = data.personal.minutes[index];
+    classValue = data.classAverage.minutes[index];
+  }
+
+  // 날짜 포맷팅
+  const date = new Date(data.dates[index]);
+  const dateStr = `${date.getMonth() + 1}/${date.getDate()} (${['일','월','화','수','목','금','토'][date.getDay()]})`;
+
+  // 단위 설정
+  const unit = type === 'steps' ? '걸음' : '분';
+
+  // 툴팁 내용 생성
+  const personalColor = type === 'steps' ? '#4CAF50' : '#2196F3';
+  const classColor = type === 'steps' ? '#FF9800' : '#E91E63';
+
+  tooltip.innerHTML = `
+    <div class="tooltip-date">${dateStr}</div>
+    <div class="tooltip-item">
+      <div class="tooltip-label">
+        <span class="tooltip-color" style="background: ${personalColor};"></span>
+        <span>내 기록</span>
+      </div>
+      <span class="tooltip-value">${personalValue.toLocaleString()}${unit}</span>
+    </div>
+    <div class="tooltip-item">
+      <div class="tooltip-label">
+        <span class="tooltip-color" style="background: ${classColor};"></span>
+        <span>학급 평균</span>
+      </div>
+      <span class="tooltip-value">${classValue.toLocaleString()}${unit}</span>
+    </div>
+  `;
+
+  // 툴팁 위치 조정
+  tooltip.style.display = 'block';
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const canvasRect = tooltip.parentElement.getBoundingClientRect();
+
+  let left = mouseX + 15;
+  let top = mouseY - tooltipRect.height / 2;
+
+  // 오른쪽 경계 체크
+  if (left + tooltipRect.width > canvasRect.width) {
+    left = mouseX - tooltipRect.width - 15;
+  }
+
+  // 상하 경계 체크
+  if (top < 0) top = 10;
+  if (top + tooltipRect.height > canvasRect.height) {
+    top = canvasRect.height - tooltipRect.height - 10;
+  }
+
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+
+  return true;
+}
+
+// 선 그리기 헬퍼 함수
+function drawLine(ctx, dataPoints, pointCount, chartWidth, chartHeight, padding, yMax, color, lineWidth = 2) {
+  const xStep = chartWidth / (pointCount - 1);
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  let started = false;
+
+  dataPoints.forEach((value, i) => {
+    const x = padding.left + xStep * i;
+    const y = padding.top + chartHeight - (value / yMax) * chartHeight;
+
+    if (!started) {
+      ctx.moveTo(x, y);
+      started = true;
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+
+  ctx.stroke();
+}
+
+// 포인트 그리기 헬퍼 함수
+function drawPoints(ctx, dataPoints, pointCount, chartWidth, chartHeight, padding, yMax, color) {
+  const xStep = chartWidth / (pointCount - 1);
+
+  dataPoints.forEach((value, i) => {
+    const x = padding.left + xStep * i;
+    const y = padding.top + chartHeight - (value / yMax) * chartHeight;
+
+    // 포인트 그리기
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 포인트 테두리
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
 }

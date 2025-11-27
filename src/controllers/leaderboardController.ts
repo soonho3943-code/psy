@@ -2,9 +2,14 @@ import { Response } from 'express';
 import db from '../utils/database';
 import { AuthRequest } from '../middleware/auth';
 
-// 종합 리더보드 조회
+// 종합 리더보드 조회 (최근 7일 기준)
 export const getLeaderboard = (req: AuthRequest, res: Response) => {
   try {
+    // 최근 7일 날짜 계산
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dateLimit = sevenDaysAgo.toISOString().split('T')[0];
+
     const leaderboard = db.prepare(`
       SELECT
         u.id,
@@ -19,11 +24,11 @@ export const getLeaderboard = (req: AuthRequest, res: Response) => {
         COUNT(DISTINCT er.date) as exercise_days
       FROM users u
       LEFT JOIN student_badges sb ON u.id = sb.student_id
-      LEFT JOIN exercise_records er ON u.id = er.student_id
+      LEFT JOIN exercise_records er ON u.id = er.student_id AND er.date >= ?
       WHERE u.role = 'student'
       GROUP BY u.id
       ORDER BY u.id
-    `).all() as any[];
+    `).all(dateLimit) as any[];
 
     // 점수 계산 (각 항목에 가중치 부여)
     const scoredLeaderboard = leaderboard.map(student => {
@@ -66,16 +71,22 @@ export const getLeaderboard = (req: AuthRequest, res: Response) => {
   }
 };
 
-// 카테고리별 리더보드 조회
+// 카테고리별 리더보드 조회 (최근 7일 기준)
 export const getCategoryLeaderboard = (req: AuthRequest, res: Response) => {
   try {
     const { category } = req.params;
 
+    // 최근 7일 날짜 계산
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dateLimit = sevenDaysAgo.toISOString().split('T')[0];
+
     let query = '';
-    let orderBy = '';
+    let params: any[] = [];
 
     switch (category) {
       case 'badges':
+        // 뱃지는 날짜 제한 없음 (모든 뱃지)
         query = `
           SELECT
             u.id,
@@ -98,11 +109,12 @@ export const getCategoryLeaderboard = (req: AuthRequest, res: Response) => {
             u.class_name,
             COALESCE(SUM(er.steps), 0) as value
           FROM users u
-          LEFT JOIN exercise_records er ON u.id = er.student_id
+          LEFT JOIN exercise_records er ON u.id = er.student_id AND er.date >= ?
           WHERE u.role = 'student'
           GROUP BY u.id
           ORDER BY value DESC
         `;
+        params = [dateLimit];
         break;
 
       case 'minutes':
@@ -113,11 +125,12 @@ export const getCategoryLeaderboard = (req: AuthRequest, res: Response) => {
             u.class_name,
             COALESCE(SUM(er.exercise_minutes), 0) as value
           FROM users u
-          LEFT JOIN exercise_records er ON u.id = er.student_id
+          LEFT JOIN exercise_records er ON u.id = er.student_id AND er.date >= ?
           WHERE u.role = 'student'
           GROUP BY u.id
           ORDER BY value DESC
         `;
+        params = [dateLimit];
         break;
 
       case 'calories':
@@ -128,11 +141,12 @@ export const getCategoryLeaderboard = (req: AuthRequest, res: Response) => {
             u.class_name,
             COALESCE(SUM(er.calories), 0) as value
           FROM users u
-          LEFT JOIN exercise_records er ON u.id = er.student_id
+          LEFT JOIN exercise_records er ON u.id = er.student_id AND er.date >= ?
           WHERE u.role = 'student'
           GROUP BY u.id
           ORDER BY value DESC
         `;
+        params = [dateLimit];
         break;
 
       case 'distance':
@@ -143,18 +157,21 @@ export const getCategoryLeaderboard = (req: AuthRequest, res: Response) => {
             u.class_name,
             COALESCE(SUM(er.distance), 0) as value
           FROM users u
-          LEFT JOIN exercise_records er ON u.id = er.student_id
+          LEFT JOIN exercise_records er ON u.id = er.student_id AND er.date >= ?
           WHERE u.role = 'student'
           GROUP BY u.id
           ORDER BY value DESC
         `;
+        params = [dateLimit];
         break;
 
       default:
         return res.status(400).json({ error: '잘못된 카테고리입니다' });
     }
 
-    const results = db.prepare(query).all() as any[];
+    const results = params.length > 0
+      ? db.prepare(query).all(...params) as any[]
+      : db.prepare(query).all() as any[];
 
     // 순위 추가
     const ranked = results.map((student, index) => ({

@@ -6,7 +6,8 @@ import {
   updateRecord,
   deleteRecord,
   getStatistics,
-  getClassRecentRecords
+  getClassRecentRecords,
+  getWeeklyChartData
 } from '../controllers/exerciseController';
 
 const router = express.Router();
@@ -19,5 +20,6 @@ router.put('/records/:id', updateRecord);
 router.delete('/records/:id', deleteRecord);
 router.get('/statistics', getStatistics);
 router.get('/class-recent-records', getClassRecentRecords);
+router.get('/weekly-chart-data', getWeeklyChartData);
 
 export default router;

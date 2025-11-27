@@ -10,6 +10,7 @@ import userRoutes from './routes/user';
 import badgeRoutes from './routes/badge';
 import leaderboardRoutes from './routes/leaderboard';
 import boardRoutes from './routes/board';
+import physicalRoutes from './routes/physical';
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/badges', badgeRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/board', boardRoutes);
+app.use('/api/physical', physicalRoutes);
 
 // Serve index.html for root path
 app.get('/', (req, res) => {

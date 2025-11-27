@@ -51,6 +51,7 @@
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dashboard">대시보드</button>
       <button class="tab-btn" data-tab="records">운동 기록</button>
+      <button class="tab-btn" data-tab="physical">신체 기록</button>
       <button class="tab-btn" data-tab="badges">획득 뱃지</button>
       <button class="tab-btn" data-tab="board">런런톡</button>
       <button class="tab-btn" data-tab="students" id="studentsTab">학생 관리</button>
@@ -105,6 +106,28 @@
             <p class="stat-value" id="totalCalories">-</p>
           </div>
         </div>
+
+        <h3>주간 추이</h3>
+        <div class="charts-grid">
+          <div class="chart-container" style="position: relative;">
+            <h4>걸음 수 추이</h4>
+            <canvas id="stepsChart" width="600" height="300"></canvas>
+            <div id="stepsChartTooltip" class="chart-tooltip" style="display: none;"></div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-color" style="background: #4CAF50;"></span> 내 기록</span>
+              <span class="legend-item"><span class="legend-color" style="background: #FF9800;"></span> 학급 평균</span>
+            </div>
+          </div>
+          <div class="chart-container" style="position: relative;">
+            <h4>운동 시간 추이 (분)</h4>
+            <canvas id="minutesChart" width="600" height="300"></canvas>
+            <div id="minutesChartTooltip" class="chart-tooltip" style="display: none;"></div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-color" style="background: #2196F3;"></span> 내 기록</span>
+              <span class="legend-item"><span class="legend-color" style="background: #E91E63;"></span> 학급 평균</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 운동 기록 탭 -->
@@ -141,6 +164,39 @@
         </table>
       </section>
 
+      <!-- 신체 기록 탭 -->
+      <section id="physical" class="tab-content">
+        <div class="section-header">
+          <h2>신체 기록</h2>
+          <button class="btn btn-primary" onclick="showAddPhysicalModal()">기록 추가</button>
+        </div>
+
+        <div class="student-selector" id="physicalStudentSelector" style="display: none;">
+          <label for="physicalSelectedStudent">학생 선택:</label>
+          <select id="physicalSelectedStudent" onchange="loadPhysicalRecords()">
+            <option value="">학생을 선택하세요</option>
+          </select>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>키 (cm)</th>
+              <th>몸무게 (kg)</th>
+              <th>BMI</th>
+              <th>메모</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="physicalRecordsTableBody">
+            <tr>
+              <td colspan="6" class="text-center">기록이 없습니다</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <!-- 획득 뱃지 탭 -->
       <section id="badges" class="tab-content">
         <div class="section-header">
@@ -152,6 +208,9 @@
 
         <!-- 리더보드 뷰 -->
         <div id="leaderboardView" style="display: none;">
+          <div style="text-align: center; padding: 10px 0; color: #666; font-size: 14px; background: #f9f9f9; border-radius: 5px; margin-bottom: 15px;">
+            📅 <strong>최근 7일</strong> 기준 - 매일 자동으로 갱신됩니다
+          </div>
           <div class="leaderboard-tabs">
             <button class="leaderboard-tab-btn active" data-category="total" onclick="switchLeaderboardCategory('total')">종합</button>
             <button class="leaderboard-tab-btn" data-category="badges" onclick="switchLeaderboardCategory('badges')">뱃지</button>
@@ -297,6 +356,33 @@
         <div class="form-group">
           <label for="recordNotes">메모</label>
           <textarea id="recordNotes" name="notes" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 신체 기록 추가 모달 -->
+  <div id="addPhysicalModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeAddPhysicalModal()">&times;</span>
+      <h2>신체 기록 추가</h2>
+      <form id="addPhysicalForm">
+        <div class="form-group">
+          <label for="physicalDate">날짜</label>
+          <input type="date" id="physicalDate" name="date" required>
+        </div>
+        <div class="form-group">
+          <label for="physicalHeight">키 (cm)</label>
+          <input type="number" id="physicalHeight" name="height" min="0" step="0.1" placeholder="예: 150.5" required>
+        </div>
+        <div class="form-group">
+          <label for="physicalWeight">몸무게 (kg)</label>
+          <input type="number" id="physicalWeight" name="weight" min="0" step="0.1" placeholder="예: 45.3" required>
+        </div>
+        <div class="form-group">
+          <label for="physicalNotes">메모</label>
+          <textarea id="physicalNotes" name="notes" rows="3" placeholder="예: 건강검진, 체육시간 측정 등"></textarea>
         </div>
         <button type="submit" class="btn btn-primary">저장</button>
       </form>
